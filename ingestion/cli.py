@@ -1,8 +1,8 @@
 """Ligne de commande de l'ingestion.
 
 esports-ingest sources
-esports-ingest run opendota.pro_matches --pages 5
-esports-ingest run opendota.pro_matches --mode backfill --pages 20
+esports-ingest run opendota.dota2.pro_matches --pages 5
+esports-ingest run opendota.dota2.pro_matches --mode backfill --pages 20
 esports-ingest state
 esports-ingest check
 """
@@ -21,7 +21,7 @@ from ingestion.core.http import HttpError
 from ingestion.core.log import setup_logging
 from ingestion.core.source import SourceError
 from ingestion.core.state import Mode
-from ingestion.core.warehouse import Warehouse
+from ingestion.core.warehouse import OutdatedWarehouseError, Warehouse
 
 logger = logging.getLogger("ingestion")
 
@@ -145,7 +145,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_state(settings)
         if args.command == "check":
             return _command_check(settings, args.source)
-    except (SourceError, HttpError, KeyError, OSError) as exc:
+    except (SourceError, HttpError, OutdatedWarehouseError, KeyError, OSError) as exc:
         logger.error("%s", exc)
         return 1
     except KeyboardInterrupt:

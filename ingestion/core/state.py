@@ -43,14 +43,19 @@ class StopReason(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class SourceKey:
-    """Identité d'un flux : un fournisseur, une discipline, une ressource."""
+    """Identité d'un flux : un fournisseur, une discipline, une ressource.
+
+    Les trois comptent. Liquipedia expose les mêmes tournois pour deux wikis :
+    sans la discipline, les deux flux se confondraient et se voleraient leur
+    avancement.
+    """
 
     name: str
     discipline: str
     resource: str
 
     def __str__(self) -> str:
-        return f"{self.name}.{self.resource}"
+        return f"{self.name}.{self.discipline}.{self.resource}"
 
 
 @dataclass(frozen=True, slots=True)

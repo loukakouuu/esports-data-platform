@@ -87,8 +87,8 @@ cp .env.example .env     # aucune clé n'est nécessaire pour OpenDota
 
 ```bash
 uv run esports-ingest sources                             # flux disponibles
-uv run esports-ingest run opendota.pro_matches --pages 5  # collecter
-uv run esports-ingest run opendota.pro_matches --mode backfill --pages 20
+uv run esports-ingest run opendota.dota2.pro_matches --pages 5  # collecter
+uv run esports-ingest run opendota.dota2.pro_matches --mode backfill --pages 20
 uv run esports-ingest state                               # où en est la collecte
 uv run esports-ingest check                               # vérifier les données
 ```

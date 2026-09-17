@@ -40,11 +40,12 @@ _META_DDL = (
         backfill_cursor VARCHAR,
         records_seen BIGINT NOT NULL DEFAULT 0,
         last_run_at TIMESTAMPTZ,
-        PRIMARY KEY (source, resource)
+        PRIMARY KEY (source, discipline, resource)
     )""",
     f"""CREATE TABLE IF NOT EXISTS {RUNS_TABLE} (
         run_id VARCHAR NOT NULL,
         source VARCHAR NOT NULL,
+        discipline VARCHAR NOT NULL,
         resource VARCHAR NOT NULL,
         mode VARCHAR NOT NULL,
         started_at TIMESTAMPTZ NOT NULL,
@@ -82,6 +83,13 @@ class UpsertResult:
         return self.received - self.written
 
 
+STATE_KEY_COLUMNS = ["source", "discipline", "resource"]
+
+
+class OutdatedWarehouseError(RuntimeError):
+    """L'entrepôt ouvert a été créé par une version antérieure du schéma."""
+
+
 class Warehouse:
     """Accès à l'entrepôt. À ouvrir par `open()` ou `in_memory()`."""
 
@@ -89,6 +97,29 @@ class Warehouse:
         self._connection = connection
         for statement in _META_DDL:
             self._connection.execute(statement)
+        self._verify_state_schema()
+
+    def _verify_state_schema(self) -> None:
+        """Refuse un entrepôt dont la table d'état date d'avant l'ajout de la discipline.
+
+        `CREATE TABLE IF NOT EXISTS` laisserait l'ancienne table en place, et
+        l'écriture d'état échouerait plus tard sur un message obscur. Mieux vaut
+        le dire ici : cette table se reconstruit seule, la supprimer ne coûte
+        que de reprendre la collecte là où les données brutes s'arrêtent.
+        """
+        row = self._connection.execute(
+            "SELECT constraint_column_names FROM duckdb_constraints() "
+            "WHERE database_name = current_database() AND schema_name = ? "
+            "AND table_name = ? AND constraint_type = 'PRIMARY KEY'",
+            [META_SCHEMA, STATE_TABLE.split(".")[-1]],
+        ).fetchone()
+        if row is not None and list(row[0]) != STATE_KEY_COLUMNS:
+            raise OutdatedWarehouseError(
+                f"{STATE_TABLE} a pour clé {list(row[0])} au lieu de {STATE_KEY_COLUMNS} : "
+                f"entrepôt antérieur à l'ajout de la discipline dans l'identité d'un flux. "
+                f"Supprimer cette table (DROP TABLE {STATE_TABLE}) suffit — elle se "
+                f"reconstruit à la prochaine collecte."
+            )
 
     @classmethod
     def open(cls, path: Path) -> Warehouse:
@@ -191,8 +222,8 @@ class Warehouse:
     def load_state(self, key: SourceKey) -> IngestionState | None:
         row = self._connection.execute(
             f"SELECT high_watermark, backfill_cursor, records_seen, last_run_at "
-            f"FROM {STATE_TABLE} WHERE source = ? AND resource = ?",
-            [key.name, key.resource],
+            f"FROM {STATE_TABLE} WHERE source = ? AND discipline = ? AND resource = ?",
+            [key.name, key.discipline, key.resource],
         ).fetchone()
         if row is None:
             return None
@@ -210,8 +241,7 @@ class Warehouse:
                 (source, discipline, resource, high_watermark, backfill_cursor,
                  records_seen, last_run_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (source, resource) DO UPDATE SET
-                discipline = EXCLUDED.discipline,
+            ON CONFLICT (source, discipline, resource) DO UPDATE SET
                 high_watermark = EXCLUDED.high_watermark,
                 backfill_cursor = EXCLUDED.backfill_cursor,
                 records_seen = EXCLUDED.records_seen,
@@ -248,12 +278,13 @@ class Warehouse:
         run_id = uuid.uuid4().hex
         self._connection.execute(
             f"""INSERT INTO {RUNS_TABLE}
-                (run_id, source, resource, mode, started_at, finished_at, pages,
+                (run_id, source, discipline, resource, mode, started_at, finished_at, pages,
                  records, inserted, updated, stop_reason, high_watermark, backfill_cursor)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 run_id,
                 report.key.name,
+                report.key.discipline,
                 report.key.resource,
                 str(report.mode),
                 report.started_at,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import duckdb
 import pytest
 
 from ingestion.core.state import (
@@ -14,7 +15,13 @@ from ingestion.core.state import (
     StopReason,
 )
 from ingestion.core.table import Column, TableSpec
-from ingestion.core.warehouse import RUNS_TABLE, STATE_TABLE, Warehouse
+from ingestion.core.warehouse import (
+    META_SCHEMA,
+    RUNS_TABLE,
+    STATE_TABLE,
+    OutdatedWarehouseError,
+    Warehouse,
+)
 
 KEY = SourceKey(name="fournisseur", discipline="dota2", resource="matchs")
 
@@ -212,6 +219,45 @@ def test_une_transaction_interrompue_ne_laisse_rien_derriere(warehouse: Warehous
 
 def test_un_flux_jamais_collecte_n_a_pas_d_etat(warehouse: Warehouse) -> None:
     assert warehouse.load_state(KEY) is None
+
+
+def test_l_identite_d_un_flux_nomme_sa_discipline() -> None:
+    assert str(KEY) == "fournisseur.dota2.matchs"
+
+
+def test_deux_disciplines_du_meme_fournisseur_avancent_separement(
+    warehouse: Warehouse,
+) -> None:
+    """Liquipedia sert les mêmes tournois pour deux wikis : les flux ne doivent
+    pas se voler leur avancement."""
+    cs = SourceKey(name="liquipedia", discipline="counterstrike", resource="tournois")
+    dota = SourceKey(name="liquipedia", discipline="dota2", resource="tournois")
+
+    warehouse.save_state(IngestionState(key=cs, backfill_cursor="jeton-cs"))
+    warehouse.save_state(IngestionState(key=dota, backfill_cursor="jeton-dota"))
+
+    etat_cs = warehouse.load_state(cs)
+    etat_dota = warehouse.load_state(dota)
+    assert etat_cs is not None and etat_cs.backfill_cursor == "jeton-cs"
+    assert etat_dota is not None and etat_dota.backfill_cursor == "jeton-dota"
+    assert warehouse.scalar(f"SELECT count(*) FROM {STATE_TABLE}") == 2
+
+
+def test_un_entrepot_anterieur_le_dit_au_lieu_d_echouer_en_sql() -> None:
+    """La table d'état se reconstruit seule : autant le dire clairement."""
+    connection = duckdb.connect(":memory:")
+    connection.execute(f"CREATE SCHEMA {META_SCHEMA}")
+    connection.execute(
+        f"""CREATE TABLE {STATE_TABLE} (
+            source VARCHAR NOT NULL, discipline VARCHAR NOT NULL,
+            resource VARCHAR NOT NULL, high_watermark VARCHAR,
+            backfill_cursor VARCHAR, records_seen BIGINT NOT NULL DEFAULT 0,
+            last_run_at TIMESTAMPTZ, PRIMARY KEY (source, resource)
+        )"""
+    )
+
+    with pytest.raises(OutdatedWarehouseError, match="DROP TABLE"):
+        Warehouse(connection)
 
 
 def test_l_etat_se_relit_tel_qu_il_a_ete_ecrit(warehouse: Warehouse) -> None:
