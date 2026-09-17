@@ -62,6 +62,25 @@ Le dépôt est une vitrine : du code jamais exécuté n'y a pas sa place.
 - La CI doit être verte.
 - Le README reflète l'état réel, y compris ce qui n'est pas fait.
 
+## Sources vérifiées le 2026-09-17
+
+Testées en direct, inutile de refaire ces vérifications :
+
+- **OpenDota** — `GET https://api.opendota.com/api/proMatches` répond 200 **sans
+  aucune clé**, 100 matchs par page : `match_id`, `start_time`, ids et noms
+  d'équipes, `leagueid`/`league_name`, `series_id`, scores, `radiant_win`.
+  Pagination par curseur descendant (`less_than_match_id`) — idéale pour une
+  ingestion incrémentale : on garde le plus petit `match_id` vu.
+- **Liquipedia MediaWiki** — `GET https://liquipedia.net/counterstrike/api.php`
+  répond 200 avec le `User-Agent`
+  `esports-data-platform/0.1 (https://github.com/loukakouuu/esports-data-platform)`
+  et `--compressed`. Renvoie un jeton `continue.cmcontinue` pour la pagination.
+  Le contenu des pages est du **wikitexte à parser** — prévoir cet effort.
+- **BALLDONTLIE** — nécessite une clé gratuite, non testée à ce stade.
+- **GRID Open Access** — demande déposée le 2026-09-17, réponse en attente.
+  **Purement additif** : l'interface de source doit permettre de le brancher
+  plus tard sans rien retoucher. Ne pas attendre cette réponse pour avancer.
+
 ## État actuel
 
 Structure et documentation posées. **Aucun code écrit à ce stade.**
