@@ -76,31 +76,55 @@ Testées en direct, inutile de refaire ces vérifications :
   `esports-data-platform/0.1 (https://github.com/loukakouuu/esports-data-platform)`
   et `--compressed`. Renvoie un jeton `continue.cmcontinue` pour la pagination.
   Le contenu des pages est du **wikitexte à parser** — prévoir cet effort.
-- **BALLDONTLIE** — nécessite une clé gratuite, non testée à ce stade.
+- **BALLDONTLIE** — **les matchs sont derrière le palier payant GOAT.** Vérifié
+  dans la spécification OpenAPI le 2026-09-17 : `/cs/v1/matches`,
+  `/cs/v1/match_maps` et toutes les statistiques l'exigent ; `rankings` et
+  `team_map_pool` demandent le palier ALL-STAR. Une clé gratuite ne donne que
+  `teams`, `players`, `tournaments` et `tournament_teams`. Sans clé, tout
+  répond `401 Unauthorized` en texte brut, y compris les points d'accès
+  gratuits. Pagination par jeton `cursor` entier rendu dans `meta.next_cursor`,
+  `per_page` plafonné à 100, clé dans l'en-tête `Authorization`.
+  **Ne pas replanifier cette source pour les matchs sans décider d'abord de payer.**
 - **GRID Open Access** — demande déposée le 2026-09-17, réponse en attente.
   **Purement additif** : l'interface de source doit permettre de le brancher
   plus tard sans rien retoucher. Ne pas attendre cette réponse pour avancer.
 
 ## État actuel
 
-La chaîne d'ingestion tourne de bout en bout sur OpenDota.
+Deux sources, trois flux, la chaîne d'ingestion tourne de bout en bout.
 
 - **Socle** : `uv`, ruff, mypy strict, pytest, CI GitHub Actions. Tout est vert.
 - **Noyau** (`ingestion/core/`) : contrat de source, client HTTP cadencé et
   réessayant, entrepôt DuckDB, boucle incrémentale, tests de données.
-- **Source** (`ingestion/sources/opendota.py`) : matchs professionnels Dota 2.
+- **Sources** : `opendota.py` (matchs Dota 2) et `liquipedia.py` (tournois
+  Counter-Strike et Dota 2), plus `wikitext.py` pour le découpage MediaWiki.
 - **Ligne de commande** : `esports-ingest run|state|check|sources`.
 
-Vérifié en conditions réelles : 400 matchs collectés, aucun doublon, un
-rattrapage qui s'arrête après une page, un backfill qui reprend sous la
-frontière.
+Un flux se nomme `fournisseur.discipline.ressource` — les trois comptent, sans
+quoi les deux wikis Liquipedia se confondraient.
 
-Prochaine étape : une deuxième source, pour éprouver le contrat. BALLDONTLIE
-publie une spécification OpenAPI (https://www.balldontlie.io/openapi/cs.yml)
-utile pour générer le client ; sa pagination n'est pas un identifiant
-décroissant, donc `DescendingIdSource` ne conviendra pas — c'est précisément le
-test que le noyau doit passer. Liquipedia MediaWiki est ouverte mais renvoie du
-wikitexte à parser.
+Le contrat de source a tenu l'épreuve d'une source qui ne lui ressemble pas.
+Trois ajustements, aucun démenti :
+
+- clés composites, un identifiant de page n'étant unique qu'au sein d'un wiki ;
+- la discipline entre dans l'identité d'un flux ;
+- l'agrégation d'un parcours reçoit la page, le jeton de continuation ne vivant
+  pas dans les lignes.
+
+Deux parcours coexistent désormais : `DescendingIdSource` (identifiant
+décroissant, OpenDota) et `TokenScanSource` (balayage par jeton, Liquipedia).
+Le lanceur, l'entrepôt et la ligne de commande ignorent la différence.
+
+Vérifié en conditions réelles : 400 matchs et 250 tournois collectés, aucun
+doublon, un rattrapage qui s'arrête après une page, un backfill qui reprend
+sous la frontière, un balayage repris au jeton.
+
+Prochaine étape naturelle : la couche `transform/` (dbt). C'est là que se
+trouve le travail intéressant, et il est maintenant visible dans les données —
+Counter-Strike classe ses tournois en `S-Tier`, Dota 2 en `1`, et rien ne dit
+encore que c'est la même chose. Côté collecte, il manque les matchs
+Counter-Strike : ni BALLDONTLIE gratuit ni HLTV ne les donnent, seule
+Liquipedia les porte, dans des pages de match à parser.
 
 ## Ce que l'environnement a appris
 
@@ -111,6 +135,16 @@ wikitexte à parser.
   fichier.
 - **`pytz` est une dépendance réelle** : sans elle, DuckDB échoue à rendre un
   `TIMESTAMPTZ` en `datetime` Python.
+- **Liquipedia : `rvsection=0` change tout.** `action=query&prop=revisions` avec
+  `rvsection=0` ne rapporte que la section d'en-tête — celle qui porte
+  l'infobox — et accepte 50 titres par requête : 1,5 ko au lieu de 123 ko,
+  mesuré sur des pages réelles. `action=parse` donnerait un texte mieux découpé
+  mais reste limité à une requête toutes les 30 s, inutilisable à cette échelle.
+  Catégorie `Tournaments` : 19 561 pages côté counterstrike, 5 694 côté dota2,
+  `cmlimit=500` accepté, des brouillons d'utilisateurs à écarter par
+  `cmnamespace=0`. Les deux wikis partagent le même modèle `Infobox league`.
+- **MediaWiki répond 200 même quand il refuse** : l'erreur est dans le corps,
+  sous la clé `error`. Un code HTTP ne suffit pas à valider une réponse.
 - **Lier un paramètre coûte environ 1 ms** sur cette machine (mesuré identique
   sur DuckDB 1.1, 1.3, 1.4 et 1.5 — ce n'est pas une régression). Une page de
   100 matchs met donc ~2 s à s'écrire, contre 7 ms en SQL littéral. Le code
