@@ -63,12 +63,20 @@ class Source(ABC):
 
     @abstractmethod
     def extend(
-        self, walk: Walk, rows: Sequence[Mapping[str, Any]], before: IngestionState
+        self,
+        walk: Walk,
+        page: Page,
+        rows: Sequence[Mapping[str, Any]],
+        before: IngestionState,
     ) -> Walk:
-        """Intègre une page à la descente en cours.
+        """Intègre une page au parcours en cours.
+
+        La page est fournie en plus des lignes : chez une source ordonnée, la
+        frontière se lit dans les lignes ; chez une source paginée par jeton,
+        elle n'existe que dans la page.
 
         `before` est l'état d'avant l'exécution : c'est à lui que se compare
-        chaque page pour savoir si la descente a rejoint du connu.
+        chaque page pour savoir si le parcours a rejoint du connu.
         """
 
     @abstractmethod
@@ -122,8 +130,13 @@ class DescendingIdSource(Source):
         return None
 
     def extend(
-        self, walk: Walk, rows: Sequence[Mapping[str, Any]], before: IngestionState
+        self,
+        walk: Walk,
+        page: Page,
+        rows: Sequence[Mapping[str, Any]],
+        before: IngestionState,
     ) -> Walk:
+        del page  # la frontière se lit dans les identifiants, pas dans la page
         if not rows:
             return walk
         identifiers = [int(row[self.id_column]) for row in rows]
@@ -133,17 +146,17 @@ class DescendingIdSource(Source):
             before.high_watermark is not None and lowest <= int(before.high_watermark)
         )
         return Walk(
-            lowest=str(lowest if walk.lowest is None else min(lowest, int(walk.lowest))),
-            highest=str(highest if walk.highest is None else max(highest, int(walk.highest))),
+            frontier=str(lowest if walk.frontier is None else min(lowest, int(walk.frontier))),
+            summit=str(highest if walk.summit is None else max(highest, int(walk.summit))),
             records=walk.records + len(rows),
             reached_known=reached_known,
         )
 
     def advance(self, *, before: IngestionState, walk: Walk, mode: Mode) -> IngestionState:
-        if walk.lowest is None or walk.highest is None:
+        if walk.frontier is None or walk.summit is None:
             return before
-        lowest = int(walk.lowest)
-        highest = int(walk.highest)
+        lowest = int(walk.frontier)
+        highest = int(walk.summit)
         known_high = None if before.high_watermark is None else int(before.high_watermark)
         known_low = None if before.backfill_cursor is None else int(before.backfill_cursor)
 

@@ -55,7 +55,7 @@ def run(
         "%s [%s] : départ %s, plafond %d page(s)",
         source.key,
         mode,
-        f"sous {cursor}" if cursor else "au sommet du flux",
+        f"depuis {cursor}" if cursor else "au début du flux",
         max_pages,
     )
 
@@ -67,7 +67,7 @@ def run(
                 break
 
             rows = [source.normalize(record) for record in page.records]
-            walk = source.extend(walk, rows, before)
+            walk = source.extend(walk, page, rows, before)
             state = source.advance(before=before, walk=walk, mode=mode)
 
             with warehouse.transaction():

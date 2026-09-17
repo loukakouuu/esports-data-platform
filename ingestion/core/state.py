@@ -87,14 +87,19 @@ class IngestionState:
 
 @dataclass(frozen=True, slots=True)
 class Walk:
-    """Ce que la descente en cours a couvert, agrégé page après page.
+    """Ce que le parcours en cours a couvert, agrégé page après page.
 
-    Distinguer la descente de l'état permet de comparer chaque page à l'état
+    Distinguer le parcours de l'état permet de comparer chaque page à l'état
     d'avant l'exécution, et non à un état déjà déplacé par les pages précédentes.
+
+    Les deux bornes sont volontairement opaques : pour une source ordonnée par
+    identifiant, ce sont le plus petit et le plus grand vus ; pour une source
+    paginée par jeton, la frontière est le jeton de continuation et le sommet
+    n'existe pas.
     """
 
-    lowest: str | None = None
-    highest: str | None = None
+    frontier: str | None = None
+    summit: str | None = None
     records: int = 0
     reached_known: bool = False
 
