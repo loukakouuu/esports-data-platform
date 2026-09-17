@@ -29,9 +29,9 @@ quotas et fraîcheurs distincts. Les réconcilier est le cœur du travail.
 
 | Source | Couverture | Contraintes |
 |---|---|---|
-| [Liquipedia](https://liquipedia.net/api-terms-of-use) | Tous titres | Accès sur demande · CC-BY-SA 3.0 · 60 req/h · `User-Agent` identifiant |
+| [Liquipedia (API MediaWiki)](https://liquipedia.net/api-terms-of-use) | Tous titres | Accès libre · CC-BY-SA 3.0 · 1 req/2 s (30 s pour `action=parse`) · `User-Agent` identifiant avec contact · gzip requis |
 | [OpenDota](https://www.opendota.com/api-keys) | Dota 2 | 50 000 appels/mois · 60 req/min |
-| [BALLDONTLIE](https://cs.balldontlie.io/) | Counter-Strike 2 | Clé gratuite |
+| [BALLDONTLIE](https://cs.balldontlie.io/) | Counter-Strike 2 | Clé gratuite · [spécification OpenAPI](https://www.balldontlie.io/openapi/cs.yml) |
 
 ### Ce que ce projet ne fait pas
 
@@ -63,7 +63,7 @@ discipline d'[esport-manager](https://github.com/loukakouuu/esport-manager).
 ## Avancement
 
 - [x] Cadrage, choix des sources, structure
-- [ ] Demandes d'accès (Liquipedia, GRID, clé production Riot)
+- [ ] Demande GRID Open Access (CS2 et Dota 2, données officielles)
 - [ ] Socle Python et intégration continue
 - [ ] Ingestion OpenDota
 - [ ] Ingestion BALLDONTLIE

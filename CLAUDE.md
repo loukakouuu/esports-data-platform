@@ -25,7 +25,7 @@ Ne pas les rouvrir sans raison ; elles ont été arbitrées.
   empilement de notebooks.
 - **Multi-jeux**, pas mono-discipline. Le noyau ne connaît qu'une interface de
   source ; ajouter un fournisseur ou une discipline ne change rien au reste.
-- **Trois sources hétérogènes** (Liquipedia, OpenDota, BALLDONTLIE) choisies
+- **Trois sources hétérogènes** (Liquipedia MediaWiki, OpenDota, BALLDONTLIE) choisies
   pour leurs différences — schémas, auth, quotas, fraîcheurs. Les réconcilier
   est l'intérêt technique du projet, pas un obstacle à contourner.
 - **Public depuis le premier commit.** L'historique fait partie de la
@@ -37,8 +37,13 @@ Ne pas les rouvrir sans raison ; elles ont été arbitrées.
 - **Aucune récolte sur une source qui l'interdit.** HLTV répond 403 aux clients
   automatisés : pas de contournement, pas de faux user-agent, pas de scraping
   déguisé. Les instantanés manuels sont datés et signalés comme tels.
-- **Liquipedia** : respecter 60 req/h, envoyer un `User-Agent` identifiant avec
-  contact, attribuer en CC-BY-SA 3.0.
+- **Liquipedia — API MediaWiki, accès libre, aucune demande à déposer.**
+  Respecter 1 req/2 s, et 1 req/30 s pour `action=parse`. Supporter gzip.
+  Envoyer un `User-Agent` descriptif incluant un contact — un agent générique
+  comme `python-requests` se fait bloquer. **Ce contact ne doit pas être en dur
+  dans le dépôt** : il vit dans `.env` (`LIQUIPEDIA_USER_AGENT`). Attribuer en
+  CC-BY-SA 3.0. L'API LiquipediaDB, elle, reste sur demande approuvée et donne
+  des données structurées plutôt que du wikitexte : piste à garder en réserve.
 - **Aucune donnée personnelle** dans le dépôt, les README ou les commits.
   L'adresse de commit est `221532583+loukakouuu@users.noreply.github.com` —
   vérifier `git config user.email` avant de committer.
@@ -61,8 +66,10 @@ Le dépôt est une vitrine : du code jamais exécuté n'y a pas sa place.
 
 Structure et documentation posées. **Aucun code écrit à ce stade.**
 
-Prochaine étape : socle Python (`uv`), puis ingestion OpenDota — la seule source
-utilisable immédiatement, les autres demandant une approbation.
+Prochaine étape : socle Python (`uv`), puis ingestion OpenDota — la source
+la plus riche immédiatement exploitable. BALLDONTLIE publie une spécification
+OpenAPI (https://www.balldontlie.io/openapi/cs.yml) utile pour générer le
+client. Liquipedia MediaWiki est ouverte mais renvoie du wikitexte à parser.
 
 Environnement : Windows, PowerShell. Python restait à installer au moment
 d'écrire ces lignes ; vérifier avant de lancer quoi que ce soit.
