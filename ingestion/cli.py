@@ -4,6 +4,7 @@ esports-ingest sources
 esports-ingest run opendota.pro_matches --pages 5
 esports-ingest run opendota.pro_matches --mode backfill --pages 20
 esports-ingest state
+esports-ingest check
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ingestion import __version__, sources
-from ingestion.core import runner
+from ingestion.core import quality, runner
 from ingestion.core.config import Settings
 from ingestion.core.http import HttpError
 from ingestion.core.log import setup_logging
@@ -63,6 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("state", help="affiche l'avancement de chaque flux")
 
+    check_command = commands.add_parser("check", help="vérifie les données collectées")
+    check_command.add_argument(
+        "source",
+        nargs="?",
+        choices=sources.available(),
+        help="flux à vérifier (défaut : tous)",
+    )
+
     return parser
 
 
@@ -98,6 +107,29 @@ def _command_state(settings: Settings) -> int:
     return 0
 
 
+def _command_check(settings: Settings, name: str | None) -> int:
+    """Rend 1 si une attente bloquante est en défaut : la CI peut s'y fier."""
+    noms = (name,) if name else sources.available()
+    results = []
+    with Warehouse.open(settings.warehouse_path) as warehouse:
+        for nom in noms:
+            source = sources.build(nom, settings)
+            try:
+                print(f"{source.key} ({source.table.qualified_name})")
+                for result in quality.run_checks(warehouse, source.checks):
+                    results.append(result)
+                    print(f"  {result.summary()}")
+            finally:
+                source.close()
+
+    en_defaut = sum(1 for result in results if result.failed)
+    bloquantes = sum(1 for result in results if result.is_blocking)
+    print(
+        f"\n{len(results)} attente(s), {en_defaut} en défaut, dont {bloquantes} bloquante(s)."
+    )
+    return 1 if quality.has_blocking_failure(results) else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -111,6 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _command_run(settings, args.source, args.mode, args.pages)
         if args.command == "state":
             return _command_state(settings)
+        if args.command == "check":
+            return _command_check(settings, args.source)
     except (SourceError, HttpError, KeyError, OSError) as exc:
         logger.error("%s", exc)
         return 1

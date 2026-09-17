@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from types import TracebackType
 from typing import Any
 
+from ingestion.core.quality import Check
 from ingestion.core.state import IngestionState, Mode, SourceKey, Walk, utcnow
 from ingestion.core.table import TableSpec
 
@@ -40,9 +41,13 @@ class Source(ABC):
     et en déduire le nouvel état.
     """
 
-    def __init__(self, *, key: SourceKey, table: TableSpec) -> None:
+    def __init__(
+        self, *, key: SourceKey, table: TableSpec, checks: Sequence[Check] = ()
+    ) -> None:
         self.key = key
         self.table = table
+        self.checks = tuple(checks)
+        """Attentes de la source sur sa propre table : elle seule sait ce qu'elle livre."""
 
     @abstractmethod
     def fetch(self, cursor: str | None) -> Page:
@@ -97,8 +102,15 @@ class DescendingIdSource(Source):
     parcouru de façon contiguë.
     """
 
-    def __init__(self, *, key: SourceKey, table: TableSpec, id_column: str) -> None:
-        super().__init__(key=key, table=table)
+    def __init__(
+        self,
+        *,
+        key: SourceKey,
+        table: TableSpec,
+        id_column: str,
+        checks: Sequence[Check] = (),
+    ) -> None:
+        super().__init__(key=key, table=table, checks=checks)
         if id_column not in table.column_names:
             raise ValueError(f"{table.qualified_name} : colonne « {id_column} » absente")
         self.id_column = id_column

@@ -19,6 +19,7 @@ from typing import Any
 
 from ingestion.core.config import Settings
 from ingestion.core.http import HttpClient
+from ingestion.core.quality import Check, Severity
 from ingestion.core.source import DescendingIdSource, Page, SourceError
 from ingestion.core.state import SourceKey, utcnow
 from ingestion.core.table import Column, TableSpec
@@ -64,6 +65,89 @@ TABLE = TableSpec(
 )
 
 
+MAX_DURATION_SECONDS = 21_600
+"""Six heures. Les 400 matchs observés plafonnent à 1 h 51 : au-delà, c'est une
+donnée abîmée, pas une partie longue."""
+
+PREMIER_MATCH_DOTA2 = "2011-01-01"
+"""Dota 2 n'existait pas avant : un match antérieur trahit une heure mal lue."""
+
+CHECKS = (
+    Check.unique(
+        "match_id_unique",
+        description="un match apparaît deux fois",
+        table=TABLE.qualified_name,
+        column="match_id",
+    ),
+    Check.rows_where(
+        "match_id_positif",
+        description="identifiant nul ou négatif",
+        table=TABLE.qualified_name,
+        violation="match_id IS NULL OR match_id <= 0",
+    ),
+    Check.rows_where(
+        "debut_plausible",
+        description="date de début absente, antérieure à Dota 2, ou dans le futur",
+        table=TABLE.qualified_name,
+        violation=(
+            "start_time IS NULL "
+            f"OR start_time < TIMESTAMPTZ '{PREMIER_MATCH_DOTA2}' "
+            "OR start_time > now() + INTERVAL 1 DAY"
+        ),
+    ),
+    Check.rows_where(
+        "duree_plausible",
+        description="durée absente, négative, ou au-delà de six heures",
+        table=TABLE.qualified_name,
+        violation=(
+            "duration_seconds IS NULL "
+            "OR duration_seconds < 0 "
+            f"OR duration_seconds > {MAX_DURATION_SECONDS}"
+        ),
+    ),
+    Check.rows_where(
+        "issue_connue",
+        description="match sans vainqueur : inexploitable pour la prédiction",
+        table=TABLE.qualified_name,
+        violation="radiant_win IS NULL",
+    ),
+    Check.rows_where(
+        "scores_positifs",
+        description="score absent ou négatif",
+        table=TABLE.qualified_name,
+        violation=(
+            "radiant_score IS NULL OR dire_score IS NULL OR radiant_score < 0 OR dire_score < 0"
+        ),
+    ),
+    Check.rows_where(
+        "charge_utile_lisible",
+        description="charge utile brute illisible en JSON",
+        table=TABLE.qualified_name,
+        violation="payload IS NULL OR NOT json_valid(payload)",
+    ),
+    Check.rows_where(
+        "dates_coherentes",
+        description="ligne rafraîchie avant d'être arrivée",
+        table=TABLE.qualified_name,
+        violation="refreshed_at < ingested_at",
+    ),
+    Check.rows_where(
+        "equipes_identifiees",
+        description="équipe sans identifiant — fréquent hors des grands tournois",
+        table=TABLE.qualified_name,
+        violation="radiant_team_id IS NULL OR dire_team_id IS NULL",
+        severity=Severity.WARN,
+    ),
+    Check.rows_where(
+        "tournoi_nomme",
+        description="tournoi sans nom",
+        table=TABLE.qualified_name,
+        violation="league_id IS NULL OR league_name IS NULL",
+        severity=Severity.WARN,
+    ),
+)
+
+
 def _as_int(value: Any) -> int | None:
     """Convertit sans jamais deviner : ce qui n'est pas un entier vaut inconnu."""
     if isinstance(value, bool) or not isinstance(value, int | float | str):
@@ -100,7 +184,7 @@ class OpenDotaProMatches(DescendingIdSource):
         client: HttpClient | None = None,
         page_size: int = PAGE_SIZE,
     ) -> None:
-        super().__init__(key=KEY, table=TABLE, id_column="match_id")
+        super().__init__(key=KEY, table=TABLE, id_column="match_id", checks=CHECKS)
         resolved = settings or Settings.from_env()
         self._api_key = resolved.opendota_api_key
         self._page_size = page_size
