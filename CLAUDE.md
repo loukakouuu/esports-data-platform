@@ -83,12 +83,37 @@ Testées en direct, inutile de refaire ces vérifications :
 
 ## État actuel
 
-Structure et documentation posées. **Aucun code écrit à ce stade.**
+La chaîne d'ingestion tourne de bout en bout sur OpenDota.
 
-Prochaine étape : socle Python (`uv`), puis ingestion OpenDota — la source
-la plus riche immédiatement exploitable. BALLDONTLIE publie une spécification
-OpenAPI (https://www.balldontlie.io/openapi/cs.yml) utile pour générer le
-client. Liquipedia MediaWiki est ouverte mais renvoie du wikitexte à parser.
+- **Socle** : `uv`, ruff, mypy strict, pytest, CI GitHub Actions. Tout est vert.
+- **Noyau** (`ingestion/core/`) : contrat de source, client HTTP cadencé et
+  réessayant, entrepôt DuckDB, boucle incrémentale, tests de données.
+- **Source** (`ingestion/sources/opendota.py`) : matchs professionnels Dota 2.
+- **Ligne de commande** : `esports-ingest run|state|check|sources`.
 
-Environnement : Windows, PowerShell. Python restait à installer au moment
-d'écrire ces lignes ; vérifier avant de lancer quoi que ce soit.
+Vérifié en conditions réelles : 400 matchs collectés, aucun doublon, un
+rattrapage qui s'arrête après une page, un backfill qui reprend sous la
+frontière.
+
+Prochaine étape : une deuxième source, pour éprouver le contrat. BALLDONTLIE
+publie une spécification OpenAPI (https://www.balldontlie.io/openapi/cs.yml)
+utile pour générer le client ; sa pagination n'est pas un identifiant
+décroissant, donc `DescendingIdSource` ne conviendra pas — c'est précisément le
+test que le noyau doit passer. Liquipedia MediaWiki est ouverte mais renvoie du
+wikitexte à parser.
+
+## Ce que l'environnement a appris
+
+- **Windows, PowerShell.** Python 3.12.10 et uv 0.12.15 installés.
+- **Encodage** : la sortie standard est en cp1252. Un script qui affiche `→` ou
+  `✓` lève `UnicodeEncodeError` ; la ligne de commande s'en tient à l'ASCII pour
+  ses marqueurs. Toujours passer `encoding="utf-8"` en lisant ou écrivant un
+  fichier.
+- **`pytz` est une dépendance réelle** : sans elle, DuckDB échoue à rendre un
+  `TIMESTAMPTZ` en `datetime` Python.
+- **Lier un paramètre coûte environ 1 ms** sur cette machine (mesuré identique
+  sur DuckDB 1.1, 1.3, 1.4 et 1.5 — ce n'est pas une régression). Une page de
+  100 matchs met donc ~2 s à s'écrire, contre 7 ms en SQL littéral. Le code
+  garde l'écriture paramétrée, qui est la bonne : ni injection, ni quoting à la
+  main. Si le volume devient gênant, la sortie est le passage par Arrow, pas la
+  construction de SQL à la ficelle.

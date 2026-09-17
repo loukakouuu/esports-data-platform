@@ -47,12 +47,14 @@ L'accès à Liquipedia suit ses conditions d'utilisation : requêtes limitées,
 ## Architecture
 
 ```
-ingestion/          Collecte par source, incrémentale et idempotente
-  sources/          Une implémentation par source, derrière une interface commune
-transform/          Modèles dbt : brut → normalisé → tables d'analyse
-analysis/           Notebooks d'exploration
-models/             Modélisation prédictive et backtests
-warehouse/          DuckDB
+ingestion/
+  core/             Noyau : contrat de source, HTTP cadencé, entrepôt, boucle
+  sources/          Une implémentation par source, derrière ce contrat
+  cli.py            Ligne de commande esports-ingest
+transform/          Modèles dbt : brut → normalisé → tables d'analyse (à venir)
+analysis/           Notebooks d'exploration (à venir)
+models/             Modélisation prédictive et backtests (à venir)
+warehouse/          Entrepôt DuckDB (hors dépôt)
 tests/              Tests de code et tests de données
 ```
 
@@ -60,18 +62,57 @@ Le noyau ne connaît qu'une interface de source. Ajouter une discipline ou un
 fournisseur ne doit rien changer au reste — même principe que l'abstraction par
 discipline d'[esport-manager](https://github.com/loukakouuu/esport-manager).
 
+### Comment la collecte reprend son travail
+
+Chaque flux garde deux bornes : le **sommet** de ce qui est connu, et la
+**frontière basse** sous laquelle il reste à creuser. Entre les deux, l'intervalle
+a été parcouru de façon contiguë.
+
+- `catchup` repart du sommet et s'arrête dès qu'il retrouve du connu. Le quota
+  ne sert qu'à collecter ce qui manque.
+- `backfill` reprend sous la frontière pour descendre dans l'historique.
+
+Chaque page est écrite avec l'état correspondant dans une seule transaction :
+une coupure — quota, réseau, Ctrl-C — ne coûte au plus qu'une page. Et comme
+l'écriture se fait par clé primaire, relancer une ingestion ne duplique rien.
+
+## Mise en route
+
+Prérequis : Python 3.12 et [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync
+cp .env.example .env     # aucune clé n'est nécessaire pour OpenDota
+```
+
+```bash
+uv run esports-ingest sources                             # flux disponibles
+uv run esports-ingest run opendota.pro_matches --pages 5  # collecter
+uv run esports-ingest run opendota.pro_matches --mode backfill --pages 20
+uv run esports-ingest state                               # où en est la collecte
+uv run esports-ingest check                               # vérifier les données
+```
+
+L'entrepôt atterrit dans `warehouse/esports.duckdb` : `raw.opendota_pro_matches`
+pour les matchs, `meta.ingestion_state` pour l'avancement, `meta.ingestion_runs`
+pour l'historique des exécutions.
+
 ## Avancement
 
 - [x] Cadrage, choix des sources, structure
+- [x] Socle Python et intégration continue
+- [x] Ingestion OpenDota — matchs professionnels Dota 2
+- [x] Tests de données sur la couche brute
 - [ ] Demande GRID Open Access (CS2 et Dota 2, données officielles)
-- [ ] Socle Python et intégration continue
-- [ ] Ingestion OpenDota
 - [ ] Ingestion BALLDONTLIE
 - [ ] Ingestion Liquipedia
 - [ ] Modèle commun inter-disciplines (dbt)
-- [ ] Tests de données
 - [ ] Analyses exploratoires
 - [ ] Modèle de prédiction et backtest
+
+Ce qui n'est pas encore fait : une seule source est branchée, et rien ne
+normalise encore les disciplines entre elles. La couche `transform/` est vide,
+les notebooks aussi.
 
 ## Licence
 
