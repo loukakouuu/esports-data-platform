@@ -1,0 +1,36 @@
+[
+  {
+    "match_id": 8974508003,
+    "duration": 2449,
+    "start_time": 1788104148,
+    "radiant_team_id": 10233067,
+    "radiant_name": "4ikibamboni",
+    "dire_team_id": 9928636,
+    "dire_name": "Team Lynx",
+    "leagueid": 19944,
+    "league_name": "EPL Masters 2026 ",
+    "series_id": null,
+    "series_type": null,
+    "radiant_score": 7,
+    "dire_score": 38,
+    "radiant_win": false,
+    "version": 22
+  },
+  {
+    "match_id": 8974370288,
+    "duration": 2739,
+    "start_time": 1788099776,
+    "radiant_team_id": 10233067,
+    "radiant_name": "4ikibamboni",
+    "dire_team_id": 9928636,
+    "dire_name": "Team Lynx",
+    "leagueid": 19944,
+    "league_name": "EPL Masters 2026 ",
+    "series_id": 1135941,
+    "series_type": 1,
+    "radiant_score": 28,
+    "dire_score": 38,
+    "radiant_win": false,
+    "version": 22
+  }
+]
