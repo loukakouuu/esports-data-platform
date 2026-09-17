@@ -10,10 +10,21 @@ from collections.abc import Callable
 
 from ingestion.core.config import Settings
 from ingestion.core.source import Source
-from ingestion.sources import opendota
+from ingestion.sources import liquipedia, opendota
+
+
+def _tournois_liquipedia(wiki: liquipedia.Wiki) -> Callable[[Settings], Source]:
+    """Un wiki par discipline, mais une seule implémentation derrière."""
+
+    def construire(settings: Settings) -> Source:
+        return liquipedia.LiquipediaTournaments(wiki, settings=settings)
+
+    return construire
+
 
 _FACTORIES: dict[str, Callable[[Settings], Source]] = {
     str(opendota.KEY): lambda settings: opendota.OpenDotaProMatches(settings=settings),
+    **{str(wiki.key): _tournois_liquipedia(wiki) for wiki in liquipedia.WIKIS},
 }
 
 

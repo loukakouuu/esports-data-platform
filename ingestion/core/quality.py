@@ -74,17 +74,22 @@ class Check:
         *,
         description: str,
         table: str,
-        column: str,
+        column: str | Sequence[str],
         severity: Severity = Severity.ERROR,
     ) -> Check:
-        """Attente d'unicité : compte les valeurs présentes plus d'une fois."""
+        """Attente d'unicité : compte les valeurs présentes plus d'une fois.
+
+        Une ou plusieurs colonnes : une page Liquipedia n'est unique qu'au sein
+        de son wiki.
+        """
+        columns = ", ".join([column] if isinstance(column, str) else column)
         return cls(
             name=name,
             description=description,
             table=table,
             sql=(
                 f"SELECT count(*) FROM ("
-                f"SELECT {column} FROM {table} GROUP BY {column} HAVING count(*) > 1)"
+                f"SELECT {columns} FROM {table} GROUP BY {columns} HAVING count(*) > 1)"
             ),
             severity=severity,
         )

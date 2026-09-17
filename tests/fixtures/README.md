@@ -15,3 +15,17 @@ touche jamais le réseau : ce qui n'est pas ici n'est pas testé.
   `series_type`). Un jeu d'essai trop propre ne prouve rien.
 - **Données** : identifiants de matchs, d'équipes et de tournois publics.
   Aucune donnée personnelle, aucune clé d'API.
+
+## `liquipedia_tournaments.json`
+
+- **Origine** : sections d'en-tête de pages de tournois, capturées le 2026-09-17
+  via l'API MediaWiki (`prop=revisions`, `rvsection=0`) des wikis
+  `counterstrike` et `dota2`.
+- **Contenu** : 7 pages — 4 Counter-Strike, 3 Dota 2 — choisies pour leurs
+  différences : un Major récent à l'infobox complète, un tournoi de 2000 en
+  devise locale, deux petits tournois, et trois pages Dota 2 dont le tier est
+  numérique là où Counter-Strike emploie des lettres. C'est cette hétérogénéité
+  que la couche de transformation devra réconcilier.
+- **Licence** : contenus Liquipedia sous
+  [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), attribués à
+  [Liquipedia](https://liquipedia.net) et à ses contributeurs.

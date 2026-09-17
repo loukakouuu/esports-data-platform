@@ -98,6 +98,54 @@ class Source(ABC):
         self.close()
 
 
+class TokenScanSource(Source):
+    """Source paginée par jeton de continuation, sans ordre exploitable.
+
+    Liquipedia liste les pages d'une catégorie par ordre alphabétique de titre :
+    une nouveauté peut apparaître n'importe où dans l'alphabet. Il n'existe donc
+    pas de « au-dessus du connu » à retrouver — seulement un balayage complet,
+    repris là où il s'est arrêté.
+
+    D'où la lecture des deux modes :
+
+    - `catchup` reprend le balayage au début, seul moyen de voir ce qui a
+      changé ;
+    - `backfill` poursuit celui en cours, jeton en main.
+
+    Un balayage terminé remet la frontière à zéro : il n'y a plus rien à
+    poursuivre, la prochaine reprise repartira du début.
+    """
+
+    def start_cursor(self, mode: Mode, state: IngestionState) -> str | None:
+        if mode is Mode.BACKFILL:
+            return state.backfill_cursor
+        return None
+
+    def extend(
+        self,
+        walk: Walk,
+        page: Page,
+        rows: Sequence[Mapping[str, Any]],
+        before: IngestionState,
+    ) -> Walk:
+        del before  # rien de connu à rejoindre : le balayage va jusqu'au bout
+        return Walk(
+            frontier=page.next_cursor,
+            summit=None,
+            records=walk.records + len(rows),
+            reached_known=False,
+        )
+
+    def advance(self, *, before: IngestionState, walk: Walk, mode: Mode) -> IngestionState:
+        del mode  # les deux modes avancent de la même façon, ils diffèrent au départ
+        return replace(
+            before,
+            backfill_cursor=walk.frontier,
+            records_seen=before.records_seen + walk.records,
+            last_run_at=utcnow(),
+        )
+
+
 class DescendingIdSource(Source):
     """Source paginée par identifiant décroissant.
 

@@ -19,6 +19,7 @@ import pytest
 from ingestion.core.config import Settings
 from ingestion.core.http import HttpClient
 from ingestion.core.warehouse import Warehouse
+from ingestion.sources.liquipedia import COUNTERSTRIKE, LiquipediaTournaments
 from ingestion.sources.opendota import OpenDotaProMatches
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -68,6 +69,119 @@ class FakeProMatchesApi:
         kwargs.setdefault("user_agent", "tests")
         kwargs.setdefault("sleeper", lambda _: None)
         return HttpClient(client=self.client(), **kwargs)
+
+
+class FakeMediaWikiApi:
+    """Rejoue l'API MediaWiki de Liquipedia : catégorie puis révisions.
+
+    Les deux points d'accès sont servis par la même doublure, à partir d'un
+    corpus de pages réellement capturées. Le jeton de continuation est opaque,
+    comme le vrai : la source ne peut rien en déduire.
+    """
+
+    def __init__(self, pages: Sequence[Record], *, batch_size: int = 3) -> None:
+        self.pages = list(pages)
+        self.batch_size = batch_size
+        self.requests: list[httpx.Request] = []
+        self.queued_responses: list[httpx.Response] = []
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.queued_responses:
+            return self.queued_responses.pop(0)
+        params = request.url.params
+        if params.get("list") == "categorymembers":
+            return self._category(params)
+        if params.get("prop") == "revisions":
+            return self._revisions(params)
+        return httpx.Response(
+            200, json={"error": {"code": "unknownaction", "info": "action inconnue"}}
+        )
+
+    def _category(self, params: httpx.QueryParams) -> httpx.Response:
+        raw_cursor = params.get("cmcontinue")
+        start = int(raw_cursor.rsplit("|", 1)[-1]) if raw_cursor else 0
+        limit = int(params.get("cmlimit") or self.batch_size)
+        window = self.pages[start : start + limit]
+        body: dict[str, Any] = {
+            "query": {
+                "categorymembers": [
+                    {"pageid": page["pageid"], "ns": 0, "title": page["title"]}
+                    for page in window
+                ]
+            }
+        }
+        if start + limit < len(self.pages):
+            body["continue"] = {"cmcontinue": f"page|{start + limit}", "continue": "-||"}
+        return httpx.Response(200, json=body)
+
+    def _revisions(self, params: httpx.QueryParams) -> httpx.Response:
+        wanted = [int(value) for value in (params.get("pageids") or "").split("|") if value]
+        connus = {int(page["pageid"]): page for page in self.pages}
+        rendered = []
+        for page_id in wanted:
+            page = connus.get(page_id)
+            if page is None:
+                # MediaWiki annonce les pages absentes plutôt que de les taire.
+                rendered.append({"pageid": page_id, "missing": True, "title": "?"})
+                continue
+            contenu = page["wikitext"]
+            if params.get("rvsection") == "0":
+                contenu = contenu.split("\n==", 1)[0]
+            rendered.append(
+                {
+                    "pageid": page_id,
+                    "title": page["title"],
+                    "revisions": [
+                        {
+                            "timestamp": page["revised_at"],
+                            "slots": {"main": {"content": contenu}},
+                        }
+                    ],
+                }
+            )
+        return httpx.Response(200, json={"query": {"pages": rendered}})
+
+    def client(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self.handle))
+
+    def http_client(self, **kwargs: Any) -> HttpClient:
+        kwargs.setdefault("user_agent", "tests")
+        kwargs.setdefault("sleeper", lambda _: None)
+        return HttpClient(client=self.client(), **kwargs)
+
+
+def load_liquipedia_corpus(wiki: str | None = None) -> list[Record]:
+    """Pages Liquipedia capturées, filtrées sur un wiki au besoin."""
+    pages: list[Record] = json.loads(
+        (FIXTURES / "liquipedia_tournaments.json").read_text(encoding="utf-8")
+    )
+    return [page for page in pages if wiki is None or page["wiki"] == wiki]
+
+
+@pytest.fixture
+def liquipedia_pages() -> list[Record]:
+    return load_liquipedia_corpus("counterstrike")
+
+
+@pytest.fixture
+def fake_wiki(liquipedia_pages: list[Record]) -> FakeMediaWikiApi:
+    return FakeMediaWikiApi(liquipedia_pages)
+
+
+@pytest.fixture
+def liquipedia(
+    fake_wiki: FakeMediaWikiApi, settings: Settings
+) -> Iterator[LiquipediaTournaments]:
+    """La vraie source Liquipedia, branchée sur la doublure."""
+    source = LiquipediaTournaments(
+        COUNTERSTRIKE,
+        settings=settings,
+        client=fake_wiki.http_client(),
+        batch_size=fake_wiki.batch_size,
+    )
+    yield source
+    source.close()
 
 
 @pytest.fixture

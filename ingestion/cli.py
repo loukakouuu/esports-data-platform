@@ -3,6 +3,7 @@
 esports-ingest sources
 esports-ingest run opendota.dota2.pro_matches --pages 5
 esports-ingest run opendota.dota2.pro_matches --mode backfill --pages 20
+esports-ingest run liquipedia.counterstrike.tournaments --pages 5
 esports-ingest state
 esports-ingest check
 """
@@ -52,7 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=Mode,
         choices=tuple(Mode),
         default=Mode.CATCH_UP,
-        help="catchup : repartir du sommet ; backfill : creuser l'historique",
+        help=(
+            "catchup : reprendre au début du flux ; "
+            "backfill : poursuivre là où la collecte s'est arrêtée"
+        ),
     )
     run_command.add_argument(
         "--pages",
@@ -108,19 +112,30 @@ def _command_state(settings: Settings) -> int:
 
 
 def _command_check(settings: Settings, name: str | None) -> int:
-    """Rend 1 si une attente bloquante est en défaut : la CI peut s'y fier."""
+    """Rend 1 si une attente bloquante est en défaut : la CI peut s'y fier.
+
+    Une attente porte sur une table, pas sur un flux : les deux wikis
+    Liquipedia alimentent la même, et leurs attentes communes ne sont évaluées
+    qu'une fois.
+    """
     noms = (name,) if name else sources.available()
-    results = []
+    par_table: dict[str, dict[str, quality.Check]] = {}
+    for nom in noms:
+        source = sources.build(nom, settings)
+        try:
+            attendues = par_table.setdefault(source.table.qualified_name, {})
+            for check in source.checks:
+                attendues.setdefault(check.name, check)
+        finally:
+            source.close()
+
+    results: list[quality.CheckResult] = []
     with Warehouse.open(settings.warehouse_path) as warehouse:
-        for nom in noms:
-            source = sources.build(nom, settings)
-            try:
-                print(f"{source.key} ({source.table.qualified_name})")
-                for result in quality.run_checks(warehouse, source.checks):
-                    results.append(result)
-                    print(f"  {result.summary()}")
-            finally:
-                source.close()
+        for table, attendues in par_table.items():
+            print(table)
+            for result in quality.run_checks(warehouse, attendues.values()):
+                results.append(result)
+                print(f"  {result.summary()}")
 
     en_defaut = sum(1 for result in results if result.failed)
     bloquantes = sum(1 for result in results if result.is_blocking)
