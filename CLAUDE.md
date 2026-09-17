@@ -1,0 +1,68 @@
+# Contexte du projet
+
+Ce fichier porte le contexte d'une session à l'autre. À lire avant d'intervenir.
+
+## Ce qu'est ce projet
+
+Une chaîne de données sur l'esport professionnel, couvrant les trois métiers :
+ingénierie (pipeline), analyse (modèles et exploration), science (prédiction).
+
+**C'est un projet de portfolio, et l'objectif de carrière en découle.** Son
+auteur est alternant data analyst en master EISI dev, et vise data scientist ou
+data engineer. Chaque décision technique doit servir ce signal : la couche
+engineering est celle qui manque le plus à son profil, c'est donc celle qui doit
+être la plus soignée.
+
+Il est également l'auteur d'[esport-manager](https://github.com/loukakouuu/esport-manager),
+un jeu de gestion esport en Godot. **Les deux projets sont indépendants** — pas
+de dépendance, pas de code partagé. Le rapprochement est narratif uniquement.
+
+## Décisions déjà prises
+
+Ne pas les rouvrir sans raison ; elles ont été arbitrées.
+
+- **Un seul dépôt**, pas un par couche. Une chaîne complète raconte mieux qu'un
+  empilement de notebooks.
+- **Multi-jeux**, pas mono-discipline. Le noyau ne connaît qu'une interface de
+  source ; ajouter un fournisseur ou une discipline ne change rien au reste.
+- **Trois sources hétérogènes** (Liquipedia, OpenDota, BALLDONTLIE) choisies
+  pour leurs différences — schémas, auth, quotas, fraîcheurs. Les réconcilier
+  est l'intérêt technique du projet, pas un obstacle à contourner.
+- **Public depuis le premier commit.** L'historique fait partie de la
+  démonstration : il doit rester propre et lisible.
+- **Licence MIT.**
+
+## Règles non négociables
+
+- **Aucune récolte sur une source qui l'interdit.** HLTV répond 403 aux clients
+  automatisés : pas de contournement, pas de faux user-agent, pas de scraping
+  déguisé. Les instantanés manuels sont datés et signalés comme tels.
+- **Liquipedia** : respecter 60 req/h, envoyer un `User-Agent` identifiant avec
+  contact, attribuer en CC-BY-SA 3.0.
+- **Aucune donnée personnelle** dans le dépôt, les README ou les commits.
+  L'adresse de commit est `221532583+loukakouuu@users.noreply.github.com` —
+  vérifier `git config user.email` avant de committer.
+- **Aucune clé d'API committée.** Variables d'environnement, `.env` ignoré,
+  `.env.example` documenté.
+- **Pas de mention d'assistance IA** dans les messages de commit.
+
+## Attentes de qualité
+
+Le dépôt est une vitrine : du code jamais exécuté n'y a pas sa place.
+
+- Toute ingestion est **incrémentale et idempotente** — la relancer ne duplique
+  rien et reprend où elle s'est arrêtée.
+- Les quotas se respectent par construction : backoff, cache, suivi d'état.
+- Les tests de données comptent autant que les tests de code.
+- La CI doit être verte.
+- Le README reflète l'état réel, y compris ce qui n'est pas fait.
+
+## État actuel
+
+Structure et documentation posées. **Aucun code écrit à ce stade.**
+
+Prochaine étape : socle Python (`uv`), puis ingestion OpenDota — la seule source
+utilisable immédiatement, les autres demandant une approbation.
+
+Environnement : Windows, PowerShell. Python restait à installer au moment
+d'écrire ces lignes ; vérifier avant de lancer quoi que ce soit.
