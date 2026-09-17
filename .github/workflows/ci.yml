@@ -18,7 +18,8 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Installer uv
-        uses: astral-sh/setup-uv@v6
+        # Pas de tag majeur mobile au-delà de v6 : la version se pointe exactement.
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
 
