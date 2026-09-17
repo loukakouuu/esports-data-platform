@@ -23,22 +23,28 @@ class Column:
 class TableSpec:
     """Une table du schéma brut, avec sa clé d'unicité.
 
-    `write_once` liste les colonnes figées à la première écriture : la date de
-    première ingestion ne doit pas être réécrite quand une ligne est revue.
+    La clé est une colonne, ou plusieurs : un identifiant de page Liquipedia
+    n'est unique qu'au sein de son wiki, et c'est le couple qui désigne une
+    ligne. `write_once` liste les colonnes figées à la première écriture : la
+    date de première ingestion ne doit pas être réécrite quand une ligne est
+    revue.
     """
 
     schema: str
     name: str
     columns: tuple[Column, ...]
-    primary_key: str
+    primary_key: str | tuple[str, ...]
     write_once: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         names = self.column_names
         if len(set(names)) != len(names):
             raise ValueError(f"{self.qualified_name} : colonnes en double")
-        if self.primary_key not in names:
-            raise ValueError(f"{self.qualified_name} : clé « {self.primary_key} » absente")
+        if not self.key_columns:
+            raise ValueError(f"{self.qualified_name} : clé vide")
+        missing = [key for key in self.key_columns if key not in names]
+        if missing:
+            raise ValueError(f"{self.qualified_name} : clé « {missing[0]} » absente")
         unknown = self.write_once - set(names)
         if unknown:
             raise ValueError(f"{self.qualified_name} : colonnes inconnues {sorted(unknown)}")
@@ -52,10 +58,21 @@ class TableSpec:
         return tuple(column.name for column in self.columns)
 
     @property
+    def key_columns(self) -> tuple[str, ...]:
+        """La clé, toujours sous forme de séquence — simple ou composite."""
+        if isinstance(self.primary_key, str):
+            return (self.primary_key,)
+        return tuple(self.primary_key)
+
+    @property
     def updatable_columns(self) -> tuple[str, ...]:
         """Colonnes réécrites quand une ligne déjà connue est revue."""
-        frozen = self.write_once | {self.primary_key}
+        frozen = self.write_once | set(self.key_columns)
         return tuple(name for name in self.column_names if name not in frozen)
+
+    def key_of(self, row: Mapping[str, Any]) -> tuple[Any, ...]:
+        """Valeur de clé d'une ligne, de quoi reconnaître deux fois la même."""
+        return tuple(row[name] for name in self.key_columns)
 
     def create_schema_sql(self) -> str:
         return f"CREATE SCHEMA IF NOT EXISTS {self.schema}"
@@ -65,7 +82,7 @@ class TableSpec:
         return (
             f"CREATE TABLE IF NOT EXISTS {self.qualified_name} (\n"
             f"    {body},\n"
-            f"    PRIMARY KEY ({self.primary_key})\n"
+            f"    PRIMARY KEY ({', '.join(self.key_columns)})\n"
             f")"
         )
 
@@ -76,12 +93,13 @@ class TableSpec:
         """
         columns = ", ".join(self.column_names)
         placeholders = ", ".join("?" for _ in self.columns)
+        conflict = ", ".join(self.key_columns)
         head = f"INSERT INTO {self.qualified_name} ({columns}) VALUES ({placeholders})"
         updatable = self.updatable_columns
         if not updatable:
-            return f"{head}\nON CONFLICT ({self.primary_key}) DO NOTHING"
+            return f"{head}\nON CONFLICT ({conflict}) DO NOTHING"
         assignments = ", ".join(f"{name} = EXCLUDED.{name}" for name in updatable)
-        return f"{head}\nON CONFLICT ({self.primary_key}) DO UPDATE SET {assignments}"
+        return f"{head}\nON CONFLICT ({conflict}) DO UPDATE SET {assignments}"
 
     def row_to_tuple(self, row: Mapping[str, Any]) -> tuple[Any, ...]:
         """Ordonne une ligne selon la table, en refusant tout écart de schéma.

@@ -164,9 +164,9 @@ class Warehouse:
         if not rows:
             return UpsertResult(received=0, written=0, inserted=0, updated=0)
 
-        unique: dict[Any, Mapping[str, Any]] = {}
+        unique: dict[tuple[Any, ...], Mapping[str, Any]] = {}
         for row in rows:
-            unique[row[spec.primary_key]] = row
+            unique[spec.key_of(row)] = row
         if len(unique) != len(rows):
             logger.debug(
                 "%s : %d doublon(s) dans le lot, réduits avant écriture",

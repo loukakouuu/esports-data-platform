@@ -51,6 +51,78 @@ def test_une_cle_absente_des_colonnes_est_refusee() -> None:
         )
 
 
+COMPOSITE = TableSpec(
+    schema="raw",
+    name="pages",
+    columns=(
+        Column("wiki", "VARCHAR NOT NULL"),
+        Column("page_id", "BIGINT NOT NULL"),
+        Column("titre", "VARCHAR"),
+    ),
+    primary_key=("wiki", "page_id"),
+)
+
+
+def test_une_cle_composite_porte_toutes_ses_colonnes() -> None:
+    """Un identifiant de page Liquipedia n'est unique qu'au sein de son wiki."""
+    assert COMPOSITE.key_columns == ("wiki", "page_id")
+    assert "PRIMARY KEY (wiki, page_id)" in COMPOSITE.create_table_sql()
+    assert "ON CONFLICT (wiki, page_id)" in COMPOSITE.upsert_sql()
+    assert COMPOSITE.updatable_columns == ("titre",)
+
+
+def test_deux_wikis_peuvent_porter_le_meme_identifiant(warehouse: Warehouse) -> None:
+    warehouse.ensure_table(COMPOSITE)
+
+    result = warehouse.upsert(
+        COMPOSITE,
+        [
+            {"wiki": "counterstrike", "page_id": 1, "titre": "PGL Major"},
+            {"wiki": "dota2", "page_id": 1, "titre": "The International"},
+        ],
+    )
+
+    assert result.inserted == 2
+    assert warehouse.count(COMPOSITE.qualified_name) == 2
+
+
+def test_une_cle_composite_reconnait_la_meme_ligne(warehouse: Warehouse) -> None:
+    warehouse.ensure_table(COMPOSITE)
+    warehouse.upsert(COMPOSITE, [{"wiki": "dota2", "page_id": 1, "titre": "TI 2024"}])
+
+    result = warehouse.upsert(COMPOSITE, [{"wiki": "dota2", "page_id": 1, "titre": "TI 13"}])
+
+    assert (result.inserted, result.updated) == (0, 1)
+    assert warehouse.scalar("SELECT titre FROM raw.pages") == "TI 13"
+
+
+def test_un_doublon_composite_interne_au_lot_est_reduit(warehouse: Warehouse) -> None:
+    warehouse.ensure_table(COMPOSITE)
+
+    result = warehouse.upsert(
+        COMPOSITE,
+        [
+            {"wiki": "dota2", "page_id": 1, "titre": "premier"},
+            {"wiki": "dota2", "page_id": 1, "titre": "dernier"},
+            {"wiki": "counterstrike", "page_id": 1, "titre": "autre wiki"},
+        ],
+    )
+
+    assert result.duplicates_in_batch == 1
+    assert warehouse.count(COMPOSITE.qualified_name) == 2
+    assert warehouse.scalar("SELECT titre FROM raw.pages WHERE wiki = 'dota2'") == "dernier"
+
+
+def test_une_cle_vide_est_refusee() -> None:
+    with pytest.raises(ValueError, match="clé vide"):
+        TableSpec(
+            schema="raw",
+            name="t",
+            columns=(Column("a", "INTEGER"),),
+            primary_key=(),
+        )
+
+
 def test_les_colonnes_figees_sortent_des_mises_a_jour() -> None:
     assert SPEC.updatable_columns == ("vainqueur",)
     assert "ingested_at = EXCLUDED.ingested_at" not in SPEC.upsert_sql()
