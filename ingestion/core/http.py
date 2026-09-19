@@ -20,7 +20,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+TOO_MANY_REQUESTS = 429
+
+RETRYABLE_STATUS = frozenset({408, 425, TOO_MANY_REQUESTS, 500, 502, 503, 504})
 """Codes qui justifient une nouvelle tentative. Un 403 ou un 404, non : ils
 disent quelque chose de la requête, pas du moment où elle est partie."""
 
@@ -69,6 +71,15 @@ class RetryPolicy:
     max_delay: float = 60.0
     jitter: float = 0.25
 
+    rate_limit_delay: float = 30.0
+    """Repli initial quand un quota est annoncé sans dire combien attendre.
+
+    Un quota se compte en minutes, pas en secondes : repartir de la seconde
+    comme pour une panne passagère fait abandonner au bout de seize secondes,
+    alors qu'il aurait suffi d'attendre. OpenDota l'a montré en refusant la
+    suite d'un backfill après 236 pages.
+    """
+
     def __post_init__(self) -> None:
         if self.max_attempts < 1:
             raise ValueError("une politique de reprise autorise au moins une tentative")
@@ -78,12 +89,14 @@ class RetryPolicy:
         attempt: int,
         *,
         retry_after: float | None = None,
+        rate_limited: bool = False,
         rng: Callable[[], float] = random.random,
     ) -> float:
         """Délai avant la tentative suivante. Un `Retry-After` reçu fait autorité."""
         if retry_after is not None:
             return min(max(retry_after, 0.0), self.max_delay)
-        delay = min(self.base_delay * 2.0 ** (attempt - 1), self.max_delay)
+        base = self.rate_limit_delay if rate_limited else self.base_delay
+        delay = min(base * 2.0 ** (attempt - 1), self.max_delay)
         return delay * (1 - self.jitter + 2 * self.jitter * rng())
 
 
@@ -151,7 +164,9 @@ class HttpClient:
 
             if attempt == self._retry.max_attempts:
                 break
-            delay = self._retry.delay_for(attempt, retry_after=retry_after)
+            delay = self._retry.delay_for(
+                attempt, retry_after=retry_after, rate_limited=status == TOO_MANY_REQUESTS
+            )
             logger.warning(
                 "%s — tentative %d/%d, nouvelle tentative dans %.1fs",
                 last_error,

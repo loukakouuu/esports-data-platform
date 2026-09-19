@@ -73,6 +73,15 @@ def test_la_gigue_reste_dans_sa_fourchette() -> None:
     assert policy.delay_for(1, rng=lambda: 1.0) == pytest.approx(5.0)
 
 
+def test_un_quota_fait_patienter_bien_plus_qu_une_panne() -> None:
+    """Un quota se compte en minutes : repartir de la seconde fait abandonner trop tôt."""
+    policy = RetryPolicy(base_delay=1.0, rate_limit_delay=30.0, max_delay=60.0, jitter=0.0)
+
+    assert policy.delay_for(1) == 1.0
+    assert policy.delay_for(1, rate_limited=True) == 30.0
+    assert policy.delay_for(2, rate_limited=True) == 60.0
+
+
 def test_un_retry_after_recu_fait_autorite() -> None:
     policy = RetryPolicy(base_delay=1.0, max_delay=30.0)
 
@@ -127,6 +136,26 @@ def test_un_429_est_reessaye_en_respectant_retry_after() -> None:
     assert client.get_json("https://exemple.test/api") == {"ok": True}
     assert len(attempts) == 2
     assert slept == [7.0]
+
+
+def test_un_quota_sans_retry_after_est_attendu_longuement() -> None:
+    """Le cas rencontré en vrai : OpenDota refuse, sans dire combien attendre."""
+    attempts: list[int] = []
+    slept: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        return httpx.Response(429) if len(attempts) == 1 else httpx.Response(200, json=[])
+
+    client = HttpClient(
+        user_agent="tests",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        retry=RetryPolicy(rate_limit_delay=30.0, jitter=0.0),
+        sleeper=slept.append,
+    )
+
+    assert client.get_json("https://exemple.test/api") == []
+    assert slept == [30.0]
 
 
 def test_une_panne_serveur_persistante_finit_par_abandonner() -> None:
