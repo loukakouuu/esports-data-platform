@@ -27,8 +27,16 @@ models:
           - accepted_range:
               arguments:
                 min_value: 0
+      - name: has_date_conflict
+        description: >
+          Vrai quand la source donne une fin antérieure au début. La fin et la
+          durée sont alors laissées inconnues plutôt que fausses, mais le
+          conflit reste visible ici.
+        data_tests: [not_null]
       - name: duration_days
-        description: Bornes incluses. Nul si l'une des deux dates manque.
+        description: >
+          Bornes incluses. Nul si l'une des deux dates manque, ou si elles se
+          contredisent.
         data_tests:
           - accepted_range:
               arguments:

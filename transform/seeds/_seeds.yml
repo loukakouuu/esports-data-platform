@@ -3,14 +3,20 @@ version: 2
 seeds:
   - name: tournament_tier
     description: >
-      Correspondance entre les échelles de tiers des disciplines. Counter-Strike
-      classe en lettres (S-Tier à D-Tier), Dota 2 en chiffres (1 à 5) : les deux
-      désignent la même hiérarchie, du circuit d'élite à l'amateur.
+      Correspondance entre les échelles de tiers, ramenées à un rang commun :
+      1 pour le circuit d'élite, 5 pour l'amateur.
 
-      C'est une décision, pas une donnée de source — d'où son passage par une
-      graine versionnée plutôt que par du SQL enfoui dans un modèle. La
-      discuter revient à modifier ce fichier, et le test
-      `assert_tiers_tous_traduits` échoue si un tier apparaît sans traduction.
+      La collecte complète a démenti l'hypothèse de départ. Counter-Strike
+      n'emploie pas seulement des lettres : 858 de ses 19 500 pages sont
+      classées en chiffres, héritées de la convention que Liquipedia utilisait
+      avant de passer aux lettres. Les deux échelles coexistent donc sur le même
+      wiki, et la graine couvre les deux. Quelques pages écrivent la lettre
+      seule (« C » pour « C-Tier ») ; c'est une lecture, assumée ici.
+
+      C'est une décision, pas une donnée de source — d'où son passage par un
+      fichier qu'on peut discuter ligne à ligne plutôt que par du SQL enfoui
+      dans un modèle. Le test `assert_tiers_tous_traduits` échoue si un tier
+      apparaît sans traduction : c'est lui qui a révélé les tiers numériques.
     columns:
       - name: discipline
         data_tests:
@@ -18,8 +24,11 @@ seeds:
           - accepted_values:
               arguments:
                 values: ["counterstrike", "dota2"]
-      - name: tier_source
-        description: Le tier tel que Liquipedia l'écrit, sans retouche.
+      - name: tier_key
+        description: >
+          Le tier de la source, en minuscules et sans espaces superflus. La
+          casse varie d'une page à l'autre — « C-tier », « c-Tier » — sans que
+          cela change le classement.
         data_tests: [not_null]
       - name: tier_rank
         description: 1 pour l'élite, 5 pour l'amateur. Comparable entre disciplines.
@@ -34,4 +43,4 @@ seeds:
     data_tests:
       - unique_combination:
           arguments:
-            combination_of_columns: [discipline, tier_source]
+            combination_of_columns: [discipline, tier_key]

@@ -24,6 +24,9 @@ renamed as (
         nullif(trim(organizer), '') as organizer,
 
         nullif(trim(tier), '') as tier_source,
+        -- Clé de rapprochement : la casse varie d'une page à l'autre
+        -- (« C-Tier », « C-tier », « c-Tier ») sans rien changer au classement.
+        lower(nullif(trim(tier), '')) as tier_key,
         -- La casse varie d'une page à l'autre : « Showmatch », « showmatch »
         -- et « Show Match » désignent la même chose.
         lower(nullif(trim(tier_type), '')) as tier_type,

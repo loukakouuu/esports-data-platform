@@ -102,6 +102,29 @@ def test_les_deux_echelles_de_tiers_se_rejoignent(
     assert {rang for _, _, rang in rangs} <= {1, 2, 3, 4, 5}
 
 
+def test_une_fin_anterieure_au_debut_ne_produit_pas_de_duree_negative(
+    entrepot_peuple: Path, tmp_path: Path
+) -> None:
+    """La source se contredit parfois : la dimension le dit au lieu de calculer."""
+    with Warehouse.open(entrepot_peuple) as warehouse:
+        warehouse.query(
+            "UPDATE raw.liquipedia_tournaments SET end_date = start_date - 10 "
+            "WHERE start_date IS NOT NULL"
+        )
+
+    assert _dbt("build", entrepot_peuple, tmp_path).returncode == 0
+
+    with Warehouse.open(entrepot_peuple) as warehouse:
+        conflits = warehouse.query(
+            "SELECT count(*), count(duration_days), count(end_date) "
+            "FROM marts.dim_tournament WHERE has_date_conflict"
+        )
+    total, durees, fins = conflits[0]
+    assert total > 0
+    assert durees == 0  # aucune durée négative n'est inventée
+    assert fins == 0  # la fin contredite est laissée inconnue
+
+
 def test_un_tier_inconnu_fait_echouer_le_build(entrepot_peuple: Path, tmp_path: Path) -> None:
     """Un vocabulaire qui change doit se voir, pas disparaître dans des nuls.
 

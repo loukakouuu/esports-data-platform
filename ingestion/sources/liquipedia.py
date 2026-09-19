@@ -132,9 +132,16 @@ CHECKS = (
     ),
     Check.rows_where(
         "dates_ordonnees",
-        description="tournoi qui se termine avant d'avoir commencé",
+        description=(
+            "tournoi qui se termine avant d'avoir commencé — faute de saisie "
+            "chez Liquipedia, pas de la collecte"
+        ),
         table=TABLE.qualified_name,
         violation="start_date IS NOT NULL AND end_date IS NOT NULL AND end_date < start_date",
+        # La collecte restitue fidèlement ce que la source écrit : bloquer sur
+        # une faute qui n'est pas la nôtre rendrait la vérification inutile.
+        # La transformation, elle, refuse d'en tirer une durée négative.
+        severity=Severity.WARN,
     ),
     Check.rows_where(
         "dates_plausibles",
