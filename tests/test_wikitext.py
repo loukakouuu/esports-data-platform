@@ -9,8 +9,51 @@ from __future__ import annotations
 
 import pytest
 
-from ingestion.sources.wikitext import find_template, parse_fields, strip_markup
+from ingestion.sources.wikitext import (
+    find_template,
+    parse_fields,
+    strip_comments,
+    strip_markup,
+)
 from tests.conftest import load_liquipedia_corpus
+
+# -- Commentaires HTML ------------------------------------------------------
+
+
+def test_un_commentaire_ferme_disparait() -> None:
+    assert strip_comments("avant <!-- caché --> après") == "avant  après"
+
+
+def test_un_commentaire_jamais_ferme_emporte_la_suite() -> None:
+    """C'est ainsi que MediaWiki le rend : autant le lire pareil."""
+    assert strip_comments("visible <!-- oubli\nsur\nplusieurs lignes") == "visible "
+
+
+def test_une_barre_commentee_ne_coupe_pas_un_champ() -> None:
+    """Le défaut que 25 000 tournois ont révélé : 340 pages en portaient un."""
+    champs = parse_fields(
+        "Infobox|liquipediatier=2<!-- discuté sur Discord|name=X -->|city=Oslo"
+    )
+
+    assert champs["liquipediatier"] == "2"
+    assert champs["city"] == "Oslo"
+    assert "name" not in champs
+
+
+def test_un_commentaire_non_ferme_ne_colle_pas_au_tier() -> None:
+    champs = parse_fields("Infobox|liquipediatier=C-Tier <!-- à revoir")
+
+    assert champs["liquipediatier"] == "C-Tier"
+
+
+def test_une_accolade_commentee_ne_trompe_pas_la_recherche_du_modele() -> None:
+    corps = find_template(
+        "<!-- {{Infobox league|name=leurre}} -->{{Infobox league|name=vrai}}", "Infobox league"
+    )
+
+    assert corps is not None
+    assert parse_fields(corps)["name"] == "vrai"
+
 
 # -- Retrouver le modèle ----------------------------------------------------
 

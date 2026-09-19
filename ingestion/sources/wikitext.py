@@ -31,6 +31,24 @@ _WHITESPACE = re.compile(r"\s+")
 
 _OPENERS = {"{{": "}}", "[[": "]]"}
 
+_COMMENT_OPEN = "<!--"
+
+
+def strip_comments(wikitext: str) -> str:
+    """Retire les commentaires HTML, y compris celui qu'on a oublié de fermer.
+
+    Ce n'est pas de la cosmétique : un commentaire qui contient une barre
+    verticale ou une accolade tromperait le découpage des champs. Sur les 25 000
+    tournois collectés, 340 pages en portaient un — assez pour vider une date ou
+    coller « <!-- » à la fin d'un tier.
+
+    Un commentaire jamais fermé court jusqu'à la fin du texte, comme MediaWiki
+    lui-même le rend.
+    """
+    cleaned = _HTML_COMMENT.sub("", wikitext)
+    unterminated = cleaned.find(_COMMENT_OPEN)
+    return cleaned if unterminated < 0 else cleaned[:unterminated]
+
 
 def find_template(wikitext: str, name: str) -> str | None:
     """Rend le corps du premier modèle `{{name ...}}`, ou `None` s'il n'y en a pas.
@@ -38,6 +56,7 @@ def find_template(wikitext: str, name: str) -> str | None:
     Le découpage suit les accolades imbriquées : un modèle dans un modèle ne
     referme pas celui qui l'englobe.
     """
+    wikitext = strip_comments(wikitext)
     marker = "{{" + name.lower()
     start = wikitext.lower().find(marker)
     if start < 0:
@@ -65,9 +84,12 @@ def parse_fields(body: str) -> dict[str, str]:
     Seuls les `|` de premier niveau séparent : ceux qui vivent dans un modèle ou
     un lien internes appartiennent à la valeur. Les clés sont mises en minuscules
     — Liquipedia alterne `sdate` et `sDate` selon les pages.
+
+    Les commentaires disparaissent avant le découpage : une barre verticale
+    commentée n'est pas un séparateur.
     """
     fields: dict[str, str] = {}
-    for chunk in _split_top_level(body)[1:]:
+    for chunk in _split_top_level(strip_comments(body))[1:]:
         key, separator, value = chunk.partition("=")
         if not separator:
             continue  # paramètre positionnel : sans nom, on ne saurait qu'en faire
