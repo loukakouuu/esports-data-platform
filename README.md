@@ -62,7 +62,10 @@ ingestion/
   sources/          Une implémentation par source, derrière ce contrat
     wikitext.py     Découpage des modèles MediaWiki, testable à part
   cli.py            Ligne de commande esports-ingest
-transform/          Modèles dbt : brut → normalisé → tables d'analyse (à venir)
+transform/          Modèles dbt : brut → normalisé → tables d'analyse
+  models/staging/   Renommage et typage, sans interprétation
+  models/marts/     Dimensions et faits, communs aux disciplines
+  seeds/            Correspondances assumées, versionnées et discutables
 analysis/           Notebooks d'exploration (à venir)
 models/             Modélisation prédictive et backtests (à venir)
 warehouse/          Entrepôt DuckDB (hors dépôt)
@@ -95,6 +98,25 @@ seule transaction : une coupure — quota, réseau, Ctrl-C — ne coûte au plus
 qu'une page. Et comme l'écriture se fait par clé primaire, relancer une
 ingestion ne duplique rien.
 
+### Ce que la transformation réconcilie
+
+Counter-Strike classe ses tournois en `S-Tier`, Dota 2 en `1`. Les deux échelles
+disent la même chose et ne se rencontrent jamais. Une graine versionnée —
+[`tournament_tier.csv`](transform/seeds/tournament_tier.csv) — les ramène à un
+rang commun, et rend possible une question qui ne l'était pas sur le brut :
+
+```sql
+select tier_rank, count(*), median(prize_pool_usd)
+from marts.dim_tournament
+group by tier_rank;   -- les deux disciplines dans la même colonne
+```
+
+Cette correspondance est **une décision, pas une donnée**. Elle vit donc dans un
+fichier qu'on peut discuter ligne à ligne, plutôt que dans du SQL enfoui au
+milieu d'un modèle. Et un test refuse le silence : si Liquipedia ajoute demain
+un tier que la graine ignore, le build échoue, au lieu de laisser les tournois
+concernés glisser hors des analyses avec un rang nul.
+
 ## Mise en route
 
 Prérequis : Python 3.12 et [uv](https://docs.astral.sh/uv/).
@@ -113,12 +135,22 @@ uv run esports-ingest state                                      # où en est la
 uv run esports-ingest check                                      # vérifier les données
 ```
 
+Puis la transformation, depuis `transform/` :
+
+```bash
+uv run dbt build      # graine, modèles et tests de données d'un seul coup
+uv run dbt docs serve # le graphe de dépendances, si le cœur vous en dit
+```
+
 L'entrepôt atterrit dans `warehouse/esports.duckdb` :
 
 | Table | Contenu |
 |---|---|
 | `raw.opendota_pro_matches` | Matchs professionnels Dota 2 |
 | `raw.liquipedia_tournaments` | Tournois Counter-Strike et Dota 2, une ligne par page de wiki |
+| `staging.stg_*` | Brut renommé et typé, sans interprétation |
+| `marts.dim_tournament` | Un tournoi par ligne, toutes disciplines, tier ramené à un rang commun |
+| `marts.fct_match` | Un match par ligne, vocabulaire neutre entre disciplines |
 | `meta.ingestion_state` | Où en est chaque flux |
 | `meta.ingestion_runs` | Historique des exécutions, échecs compris |
 
@@ -133,18 +165,18 @@ devient intéressant, l'historique n'est pas à recollecter.
 - [x] Ingestion OpenDota — matchs professionnels Dota 2
 - [x] Tests de données sur la couche brute
 - [x] Ingestion Liquipedia — tournois Counter-Strike et Dota 2
+- [x] Modèle commun inter-disciplines (dbt)
 - [ ] Demande GRID Open Access (CS2 et Dota 2, données officielles)
 - [ ] Ingestion BALLDONTLIE — référentiel seulement, les matchs étant payants
-- [ ] Modèle commun inter-disciplines (dbt)
+- [ ] Rapprochement des tournois OpenDota et Liquipedia
 - [ ] Analyses exploratoires
 - [ ] Modèle de prédiction et backtest
 
-Ce qui n'est pas encore fait : rien ne normalise encore les disciplines entre
-elles, et c'est justement là que se trouve le travail intéressant — un tournoi
-classé `S-Tier` chez Counter-Strike et `1` chez Dota 2 désigne la même chose,
-mais rien ne le dit encore. La couche `transform/` est vide, les notebooks
-aussi. Côté matchs, seul Dota 2 est couvert : Counter-Strike n'a pour l'instant
-que ses tournois.
+Ce qui n'est pas encore fait : les tournois et les matchs ne se parlent pas
+encore. OpenDota et Liquipedia n'ont aucun identifiant commun, et seul le nom
+permettrait de les rapprocher — `fct_match` garde donc l'identifiant de ligue
+de sa source, sans jointure vers `dim_tournament`. Côté matchs, seul Dota 2 est
+couvert : Counter-Strike n'a que ses tournois. Les notebooks sont vides.
 
 ## Licence
 

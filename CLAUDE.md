@@ -91,7 +91,8 @@ Testées en direct, inutile de refaire ces vérifications :
 
 ## État actuel
 
-Deux sources, trois flux, la chaîne d'ingestion tourne de bout en bout.
+Deux sources, trois flux, et une couche de transformation : la chaîne va du
+réseau aux tables d'analyse.
 
 - **Socle** : `uv`, ruff, mypy strict, pytest, CI GitHub Actions. Tout est vert.
 - **Noyau** (`ingestion/core/`) : contrat de source, client HTTP cadencé et
@@ -119,12 +120,29 @@ Vérifié en conditions réelles : 400 matchs et 250 tournois collectés, aucun
 doublon, un rattrapage qui s'arrête après une page, un backfill qui reprend
 sous la frontière, un balayage repris au jeton.
 
-Prochaine étape naturelle : la couche `transform/` (dbt). C'est là que se
-trouve le travail intéressant, et il est maintenant visible dans les données —
-Counter-Strike classe ses tournois en `S-Tier`, Dota 2 en `1`, et rien ne dit
-encore que c'est la même chose. Côté collecte, il manque les matchs
-Counter-Strike : ni BALLDONTLIE gratuit ni HLTV ne les donnent, seule
-Liquipedia les porte, dans des pages de match à parser.
+**Transformation** (`transform/`, dbt-duckdb) : staging qui renomme sans
+interpréter, puis `marts.dim_tournament` et `marts.fct_match`. Les échelles de
+tiers se rejoignent via la graine `tournament_tier`, et le test
+`assert_tiers_tous_traduits` fait échouer le build si un tier apparaît sans
+traduction. Deux tests génériques maison (`unique_combination`,
+`accepted_range`) évitent la dépendance `dbt_utils`. `dbt build` rend 41 nœuds
+au vert, et la suite pytest le rejoue sur un entrepôt bâti depuis les
+instantanés — donc en CI, sans réseau.
+
+Pistes suivantes, par intérêt décroissant :
+
+1. **Rapprocher les tournois entre sources.** OpenDota et Liquipedia n'ont
+   aucun identifiant commun ; seul le nom permettrait de les relier
+   (`league_name` contre `tournament_name`). C'est le vrai chaînon manquant
+   entre `fct_match` et `dim_tournament`, et un exercice de rapprochement
+   approximatif honnête — avec un taux de correspondance mesuré, pas promis.
+2. **Matchs Counter-Strike.** Ni BALLDONTLIE gratuit ni HLTV ne les donnent ;
+   seule Liquipedia les porte, dans des pages de match à parser.
+3. **Analyses puis prédiction**, une fois la matière assemblée.
+
+L'entrepôt local ne contient qu'un échantillon (250 tournois sur ~25 000, 400
+matchs). Une collecte complète tiendrait en une trentaine de minutes à la
+cadence imposée — à lancer quand les analyses en auront besoin.
 
 ## Ce que l'environnement a appris
 
