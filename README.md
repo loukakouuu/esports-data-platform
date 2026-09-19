@@ -111,11 +111,26 @@ from marts.dim_tournament
 group by tier_rank;   -- les deux disciplines dans la même colonne
 ```
 
+Sur les 25 222 tournois collectés :
+
+| Rang | Tournois | Dotation médiane |
+|---|---|---|
+| 1 — Premier | 2 176 | 250 000 $ |
+| 2 — Majeur | 1 777 | 50 000 $ |
+| 3 — Intermédiaire | 4 684 | 15 000 $ |
+| 4 — Mineur | 16 535 | 2 000 $ |
+
 Cette correspondance est **une décision, pas une donnée**. Elle vit donc dans un
 fichier qu'on peut discuter ligne à ligne, plutôt que dans du SQL enfoui au
 milieu d'un modèle. Et un test refuse le silence : si Liquipedia ajoute demain
 un tier que la graine ignore, le build échoue, au lieu de laisser les tournois
 concernés glisser hors des analyses avec un rang nul.
+
+Ce test a déjà servi. La première hypothèse — lettres chez Counter-Strike,
+chiffres chez Dota 2 — tenait sur un échantillon de 250 pages ; la collecte
+complète l'a défaite, en révélant 858 pages Counter-Strike classées en chiffres,
+héritées d'une convention antérieure. Le build est devenu rouge, ce qui était
+exactement son travail.
 
 ## Mise en route
 

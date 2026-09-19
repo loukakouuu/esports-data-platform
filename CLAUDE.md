@@ -140,9 +140,35 @@ Pistes suivantes, par intérêt décroissant :
    seule Liquipedia les porte, dans des pages de match à parser.
 3. **Analyses puis prédiction**, une fois la matière assemblée.
 
-L'entrepôt local ne contient qu'un échantillon (250 tournois sur ~25 000, 400
-matchs). Une collecte complète tiendrait en une trentaine de minutes à la
-cadence imposée — à lancer quand les analyses en auront besoin.
+## Ce que la collecte complète a appris (2026-09-19)
+
+L'entrepôt local contient désormais **25 222 tournois** (19 525 Counter-Strike,
+5 697 Dota 2 — les deux catégories épuisées) et **63 700 matchs** OpenDota,
+remontant à mai 2024. Deux passes d'environ 45 minutes chacune.
+
+Le passage à l'échelle a démenti trois choses qu'un échantillon de 250 lignes
+laissait croire. Elles sont corrigées, mais le raisonnement vaut d'être gardé :
+
+- **Un commentaire HTML pouvait casser le découpage des champs.** Une barre
+  verticale commentée était prise pour un séparateur. 340 pages sur 25 000 en
+  portaient la trace, jusque dans les dates. Les commentaires sont maintenant
+  retirés avant tout découpage, celui qu'on a oublié de fermer compris.
+- **Counter-Strike emploie aussi l'échelle numérique** : 858 pages classées en
+  chiffres, héritage de la convention d'avant les lettres. La casse varie en
+  prime (`C-Tier`, `C-tier`, `c-Tier`), d'où un rapprochement sur clé en
+  minuscules. C'est le test `assert_tiers_tous_traduits` qui l'a signalé.
+- **OpenDota refuse à ~47 requêtes/minute**, sous sa limite annoncée de 60. Le
+  repli exponentiel repartait d'une seconde et abandonnait après seize ; un 429
+  sans `Retry-After` part désormais de trente secondes. Vérifié en vrai : la
+  reprise a attendu 31 s puis 62 s, et les 400 pages suivantes sont passées.
+
+Trois tournois Liquipedia se terminent avant d'avoir commencé. C'est la source
+qui se trompe : le brut le restitue, l'attente correspondante n'est qu'un
+avertissement, et la dimension laisse la fin inconnue plutôt que d'en tirer une
+durée négative.
+
+Pour aller plus loin côté matchs, relancer un backfill OpenDota : chaque page
+vaut 100 matchs et l'état reprend tout seul.
 
 ## Ce que l'environnement a appris
 
