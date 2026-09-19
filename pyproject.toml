@@ -18,6 +18,7 @@ esports-ingest = "ingestion.cli:main"
 
 [dependency-groups]
 dev = [
+    "dbt-duckdb>=1.11.0",
     "mypy>=1.11",
     "pytest>=8.3",
     "ruff>=0.6",

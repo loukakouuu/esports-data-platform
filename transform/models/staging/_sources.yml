@@ -1,0 +1,37 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Couche brute écrite par l'ingestion. Aucun modèle n'y écrit : c'est la
+      seule vérité en entrée de la transformation.
+    schema: raw
+    tables:
+      - name: opendota_pro_matches
+        description: Matchs professionnels Dota 2, un par ligne.
+        loaded_at_field: refreshed_at
+        freshness:
+          warn_after: { count: 2, period: day }
+          error_after: { count: 7, period: day }
+        columns:
+          - name: match_id
+            description: Identifiant OpenDota, unique et croissant dans le temps.
+            data_tests: [unique, not_null]
+
+      - name: liquipedia_tournaments
+        description: >
+          Tournois, une ligne par page de wiki. L'identifiant de page n'est
+          unique qu'au sein de son wiki, d'où la clé composite.
+        loaded_at_field: refreshed_at
+        freshness:
+          warn_after: { count: 7, period: day }
+          error_after: { count: 30, period: day }
+        columns:
+          - name: page_id
+            data_tests: [not_null]
+          - name: wiki
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["counterstrike", "dota2"]

@@ -1,0 +1,26 @@
+name: esports
+version: 0.1.0
+profile: esports
+
+# Rien ne part chez dbt Labs : ni statistiques d'usage, ni identifiant.
+flags:
+  send_anonymous_usage_stats: false
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+# Le brut est la seule vérité en entrée : aucun modèle n'écrit dans `raw`.
+models:
+  esports:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  esports:
+    +schema: staging

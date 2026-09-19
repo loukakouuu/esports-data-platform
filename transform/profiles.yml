@@ -1,0 +1,11 @@
+# Le chemin de l'entrepôt vient de la même variable que celle de l'ingestion :
+# une seule source de vérité pour les deux couches. Le défaut vaut pour un dbt
+# lancé depuis ce dossier.
+esports:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('WAREHOUSE_PATH', '../warehouse/esports.duckdb') }}"
+      schema: main
+      threads: 4

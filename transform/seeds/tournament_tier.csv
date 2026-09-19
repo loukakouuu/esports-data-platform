@@ -1,0 +1,11 @@
+discipline,tier_source,tier_rank,tier_label
+counterstrike,S-Tier,1,Premier
+counterstrike,A-Tier,2,Majeur
+counterstrike,B-Tier,3,Intermediaire
+counterstrike,C-Tier,4,Mineur
+counterstrike,D-Tier,5,Amateur
+dota2,1,1,Premier
+dota2,2,2,Majeur
+dota2,3,3,Intermediaire
+dota2,4,4,Mineur
+dota2,5,5,Amateur

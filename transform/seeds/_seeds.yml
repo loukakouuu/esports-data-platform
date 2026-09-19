@@ -1,0 +1,37 @@
+version: 2
+
+seeds:
+  - name: tournament_tier
+    description: >
+      Correspondance entre les échelles de tiers des disciplines. Counter-Strike
+      classe en lettres (S-Tier à D-Tier), Dota 2 en chiffres (1 à 5) : les deux
+      désignent la même hiérarchie, du circuit d'élite à l'amateur.
+
+      C'est une décision, pas une donnée de source — d'où son passage par une
+      graine versionnée plutôt que par du SQL enfoui dans un modèle. La
+      discuter revient à modifier ce fichier, et le test
+      `assert_tiers_tous_traduits` échoue si un tier apparaît sans traduction.
+    columns:
+      - name: discipline
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["counterstrike", "dota2"]
+      - name: tier_source
+        description: Le tier tel que Liquipedia l'écrit, sans retouche.
+        data_tests: [not_null]
+      - name: tier_rank
+        description: 1 pour l'élite, 5 pour l'amateur. Comparable entre disciplines.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+      - name: tier_label
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: [discipline, tier_source]
