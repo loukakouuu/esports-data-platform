@@ -267,7 +267,7 @@ def source_de_pages(
     wiki: FakeMatchWiki, settings: Settings, warehouse: Warehouse, taille: int = 2
 ) -> Iterator[LiquipediaMatchPages]:
     source = LiquipediaMatchPages(
-        VALORANT, settings=settings, client=wiki.http_client(), batch_size=taille
+        VALORANT, settings=settings, client=wiki.http_client(), batch_size=taille, max_rank=5
     )
     warehouse.ensure_table(PAGES)
     source.attach(warehouse)
@@ -291,6 +291,33 @@ def test_les_tournois_majeurs_passent_d_abord_les_plus_recents_en_tete(
     source, _ = pages
 
     assert source.pending(10) == ["Match:majeur recent", "Match:majeur ancien", "Match:mineur"]
+
+
+def test_par_defaut_seuls_les_deux_premiers_niveaux_entrent_dans_la_file(
+    settings: Settings, entrepot_avec_liens: Warehouse
+) -> None:
+    """95 765 matchs désignés, trente-trois jours pour tout rendre : on choisit."""
+    source = LiquipediaMatchPages(
+        VALORANT, settings=settings, client=FakeMatchWiki().http_client()
+    )
+    entrepot_avec_liens.ensure_table(PAGES)
+    source.attach(entrepot_avec_liens)
+
+    assert source.pending(10) == ["Match:majeur recent", "Match:majeur ancien"]
+
+
+def test_la_saisie_irreguliere_des_tiers_ne_fausse_pas_l_ordre(
+    pages: tuple[LiquipediaMatchPages, FakeMatchWiki], entrepot_avec_liens: Warehouse
+) -> None:
+    """« C-tier », « C », « 4 » : même niveau, quelle que soit la main qui l'a saisi."""
+    source, _ = pages
+    entrepot_avec_liens.upsert(TOURNAMENTS, [tournoi(9, "s", HIER), tournoi(8, "4", HIER)])
+    entrepot_avec_liens.upsert(LINKS, [lien(9, "Match:lettre seule"), lien(8, "Match:chiffre")])
+
+    file = source.pending(10)
+
+    assert file.index("Match:lettre seule") < file.index("Match:majeur ancien")
+    assert file.index("Match:chiffre") > file.index("Match:majeur ancien")
 
 
 def test_un_tournoi_qui_n_a_pas_commence_n_entre_pas_dans_la_file(

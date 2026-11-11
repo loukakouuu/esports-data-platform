@@ -75,6 +75,15 @@ RETRY_UNFINISHED_AFTER_DAYS = 3
 
 MAX_CONTINUATIONS = 40
 
+MAX_RANK = 2
+"""Niveau le plus bas rendu par défaut : S-Tier et A-Tier.
+
+Le relevé des liens a désigné 95 765 matchs Valorant. Tous les rendre prendrait
+trente-trois jours ; les deux premiers niveaux en font 6 861, soit cinquante-huit
+heures. Le plafond est un choix de périmètre, pas une limite technique : le
+relever suffit à faire entrer le niveau suivant dans la file.
+"""
+
 # -- Les liens tournoi → matchs ---------------------------------------------
 
 LINKS = TableSpec(
@@ -288,9 +297,13 @@ _QUEUE = f"""
 WITH designes AS (
     SELECT
         liens.match_title,
-        min(CASE lower(tournois.tier)
-                WHEN 's-tier' THEN 1 WHEN 'a-tier' THEN 2
-                WHEN 'b-tier' THEN 3 WHEN 'c-tier' THEN 4 ELSE 5 END) AS rang,
+        -- La saisie varie d'une page à l'autre : « C-Tier », « C-tier », « C », « 4 ».
+        min(CASE
+                WHEN lower(tournois.tier) IN ('s-tier', 's', '1') THEN 1
+                WHEN lower(tournois.tier) IN ('a-tier', 'a', '2') THEN 2
+                WHEN lower(tournois.tier) IN ('b-tier', 'b', '3') THEN 3
+                WHEN lower(tournois.tier) IN ('c-tier', 'c', '4') THEN 4
+                ELSE 5 END) AS rang,
         max(tournois.start_date) AS debut
     FROM {LINKS.qualified_name} AS liens
     JOIN {TOURNAMENTS.qualified_name} AS tournois
@@ -303,9 +316,10 @@ SELECT designes.match_title
 FROM designes
 LEFT JOIN {PAGES.qualified_name} AS pages
     ON pages.wiki = ? AND pages.page_title = designes.match_title
-WHERE pages.page_title IS NULL
+WHERE designes.rang <= ?
+    AND (pages.page_title IS NULL
     OR (pages.status NOT IN ({", ".join(f"'{status}'" for status in SETTLED)})
-        AND pages.refreshed_at < now() - INTERVAL {RETRY_UNFINISHED_AFTER_DAYS} DAY)
+        AND pages.refreshed_at < now() - INTERVAL {RETRY_UNFINISHED_AFTER_DAYS} DAY))
 ORDER BY designes.rang, designes.debut DESC NULLS LAST, designes.match_title
 LIMIT ?
 """
@@ -326,11 +340,13 @@ class LiquipediaMatchPages(TokenScanSource):
         settings: Settings | None = None,
         client: HttpClient | None = None,
         batch_size: int = PARSE_BATCH,
+        max_rank: int = MAX_RANK,
     ) -> None:
         super().__init__(key=wiki.flux("match_pages"), table=PAGES, checks=PAGE_CHECKS)
         resolved = settings or Settings.from_env()
         self.wiki = wiki
         self._batch_size = batch_size
+        self._max_rank = max_rank
         self._warehouse: Warehouse | None = None
         self.user_agent = _user_agent(resolved)
         self._client = client or HttpClient(
@@ -350,7 +366,9 @@ class LiquipediaMatchPages(TokenScanSource):
                     f"{self.key} : {table.qualified_name} n'existe pas encore — collecter "
                     f"d'abord les tournois puis leurs liens vers les matchs"
                 )
-        rows = self._warehouse.query(_QUEUE, [self.wiki.slug, self.wiki.slug, limit])
+        rows = self._warehouse.query(
+            _QUEUE, [self.wiki.slug, self.wiki.slug, self._max_rank, limit]
+        )
         return [str(row[0]) for row in rows]
 
     def fetch(self, cursor: str | None) -> Page:

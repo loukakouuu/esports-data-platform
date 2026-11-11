@@ -31,9 +31,12 @@ seeds:
           cela change le classement.
         data_tests: [not_null]
       - name: tier_rank
-        description: 1 pour l'élite, 5 pour l'amateur. Comparable entre disciplines.
+        description: >
+          1 pour l'élite, 5 pour l'amateur. Comparable entre disciplines. Nul
+          quand la valeur est connue mais ne classe rien : un « Showmatch »
+          saisi à la place du tier n'est pas un niveau, et le dire vaut mieux
+          que lui en inventer un.
         data_tests:
-          - not_null
           - accepted_values:
               arguments:
                 values: [1, 2, 3, 4, 5]

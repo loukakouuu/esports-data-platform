@@ -13,6 +13,7 @@ select
 from {{ ref('dim_tournament') }}
 
 where tier_source is not null
-    and tier_rank is null
+    -- Connu de la graine, donc libellé — même quand il ne classe rien.
+    and tier_label is null
 
 group by discipline, tier_source
