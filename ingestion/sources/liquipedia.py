@@ -65,7 +65,11 @@ class Wiki:
 
     @property
     def key(self) -> SourceKey:
-        return SourceKey(name="liquipedia", discipline=self.discipline, resource="tournaments")
+        return self.flux("tournaments")
+
+    def flux(self, resource: str) -> SourceKey:
+        """Identité d'un flux de ce wiki : même fournisseur, même discipline."""
+        return SourceKey(name="liquipedia", discipline=self.discipline, resource=resource)
 
 
 COUNTERSTRIKE = Wiki(slug="counterstrike", discipline="counterstrike")

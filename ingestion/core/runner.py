@@ -43,6 +43,7 @@ def run(
         raise ValueError("une exécution parcourt au moins une page")
 
     warehouse.ensure_table(source.table)
+    source.attach(warehouse)
     before = warehouse.load_state(source.key) or IngestionState.empty(source.key)
     state = before
     walk = Walk()
@@ -62,9 +63,11 @@ def run(
     try:
         for page_number in range(1, max_pages + 1):
             page = source.fetch(cursor)
-            if not page.records:
+            if not page.records and page.next_cursor is None:
                 stop_reason = StopReason.EMPTY_PAGE
                 break
+            # Une page vide suivie d'un jeton n'est pas une fin : cinquante
+            # tournois sans match lié ne disent rien des cinquante suivants.
 
             rows = [source.normalize(record) for record in page.records]
             walk = source.extend(walk, page, rows, before)

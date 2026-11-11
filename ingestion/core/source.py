@@ -11,11 +11,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import TracebackType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ingestion.core.quality import Check
 from ingestion.core.state import IngestionState, Mode, SourceKey, Walk, utcnow
 from ingestion.core.table import TableSpec
+
+if TYPE_CHECKING:
+    from ingestion.core.warehouse import Warehouse
 
 
 class SourceError(RuntimeError):
@@ -82,6 +85,15 @@ class Source(ABC):
     @abstractmethod
     def advance(self, *, before: IngestionState, walk: Walk, mode: Mode) -> IngestionState:
         """Déduit le nouvel état de l'état initial et de la descente accomplie."""
+
+    def attach(self, warehouse: Warehouse) -> None:  # noqa: B027  (crochet facultatif)
+        """Donne l'entrepôt à lire, avant le premier appel.
+
+        La plupart des sources n'en font rien : leur entrée est le réseau. Une
+        source d'enrichissement, elle, tire sa file de travail de ce que
+        d'autres flux ont déjà écrit — les pages de match à rendre sont celles
+        que les tournois désignent.
+        """
 
     def close(self) -> None:  # noqa: B027  (crochet facultatif, pas une obligation)
         """Libère ce qui doit l'être. Une source sans ressource n'a rien à faire ici."""
