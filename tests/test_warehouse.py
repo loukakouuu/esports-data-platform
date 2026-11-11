@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -21,6 +22,7 @@ from ingestion.core.warehouse import (
     STATE_TABLE,
     OutdatedWarehouseError,
     Warehouse,
+    WarehouseBusyError,
 )
 
 KEY = SourceKey(name="fournisseur", discipline="dota2", resource="matchs")
@@ -309,3 +311,17 @@ def test_une_execution_laisse_une_trace(warehouse: Warehouse) -> None:
         [run_id],
     )
     assert trace == [("fournisseur", "catchup", 2, 12, "exhausted", "800")]
+
+
+def test_un_entrepot_tenu_par_un_autre_processus_le_dit_clairement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Une collecte de plusieurs jours rend la collision probable : qu'elle se lise."""
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise duckdb.IOException("Cannot open file: used by another process")
+
+    monkeypatch.setattr(duckdb, "connect", refuse)
+
+    with pytest.raises(WarehouseBusyError, match="un écrivain à la fois"):
+        Warehouse.open(tmp_path / "occupe.duckdb")

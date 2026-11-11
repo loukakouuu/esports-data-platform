@@ -90,6 +90,10 @@ class OutdatedWarehouseError(RuntimeError):
     """L'entrepôt ouvert a été créé par une version antérieure du schéma."""
 
 
+class WarehouseBusyError(RuntimeError):
+    """Un autre processus tient déjà l'entrepôt."""
+
+
 class Warehouse:
     """Accès à l'entrepôt. À ouvrir par `open()` ou `in_memory()`."""
 
@@ -125,7 +129,17 @@ class Warehouse:
     def open(cls, path: Path) -> Warehouse:
         path.parent.mkdir(parents=True, exist_ok=True)
         logger.debug("entrepôt : %s", path)
-        return cls(duckdb.connect(str(path)))
+        try:
+            connection = duckdb.connect(str(path))
+        except duckdb.IOException as exc:
+            # DuckDB n'admet qu'un processus écrivain. Une collecte de plusieurs
+            # jours rend la collision probable : autant qu'elle se lise.
+            raise WarehouseBusyError(
+                f"{path} est tenu par un autre processus — une collecte est sans doute "
+                f"en cours. DuckDB n'admet qu'un écrivain à la fois : attendre qu'elle "
+                f"se termine, ou l'interrompre (elle reprendra où elle s'est arrêtée)."
+            ) from exc
+        return cls(connection)
 
     @classmethod
     def in_memory(cls) -> Warehouse:
