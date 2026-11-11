@@ -34,4 +34,4 @@ sources:
               - not_null
               - accepted_values:
                   arguments:
-                    values: ["counterstrike", "dota2"]
+                    values: ["counterstrike", "dota2", "valorant"]

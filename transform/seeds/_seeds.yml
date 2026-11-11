@@ -23,7 +23,7 @@ seeds:
           - not_null
           - accepted_values:
               arguments:
-                values: ["counterstrike", "dota2"]
+                values: ["counterstrike", "dota2", "valorant"]
       - name: tier_key
         description: >
           Le tier de la source, en minuscules et sans espaces superflus. La

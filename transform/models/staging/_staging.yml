@@ -29,7 +29,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["counterstrike", "dota2"]
+                values: ["counterstrike", "dota2", "valorant"]
       - name: tier_type
         description: Ramené en minuscules, la casse variant d'une page à l'autre.
     data_tests:

@@ -19,3 +19,8 @@ dota2,2,2,Majeur
 dota2,3,3,Intermediaire
 dota2,4,4,Mineur
 dota2,5,5,Amateur
+valorant,s-tier,1,Premier
+valorant,a-tier,2,Majeur
+valorant,b-tier,3,Intermediaire
+valorant,c-tier,4,Mineur
+valorant,d-tier,5,Amateur

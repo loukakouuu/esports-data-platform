@@ -11,6 +11,7 @@ dependencies = [
     # DuckDB s'en sert pour rendre les TIMESTAMPTZ en datetime Python.
     "pytz>=2024.1",
     "python-dotenv>=1.0",
+    "selectolax>=1.0.2",
 ]
 
 [project.scripts]

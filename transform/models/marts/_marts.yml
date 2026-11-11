@@ -14,7 +14,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["counterstrike", "dota2"]
+                values: ["counterstrike", "dota2", "valorant"]
       - name: tier_rank
         description: 1 pour l'élite, 5 pour l'amateur. Nul si le tier n'est pas traduit.
         data_tests:

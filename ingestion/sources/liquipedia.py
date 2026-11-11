@@ -70,7 +70,8 @@ class Wiki:
 
 COUNTERSTRIKE = Wiki(slug="counterstrike", discipline="counterstrike")
 DOTA2 = Wiki(slug="dota2", discipline="dota2")
-WIKIS = (COUNTERSTRIKE, DOTA2)
+VALORANT = Wiki(slug="valorant", discipline="valorant")
+WIKIS = (COUNTERSTRIKE, DOTA2, VALORANT)
 
 TABLE = TableSpec(
     schema="raw",
