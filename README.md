@@ -43,6 +43,33 @@ référentiel — équipes, joueurs, tournois — et aucun match. Une dépendanc
 payante se défendrait mal dans un projet qu'on doit pouvoir cloner et lancer :
 l'effort est donc allé à Liquipedia, qui couvre les deux disciplines sans clé.
 
+### Valorant, la discipline prioritaire
+
+Le projet vise désormais d'abord Valorant, avec une ambition : des analyses du
+niveau de [vlr.gg](https://www.vlr.gg), et au-delà.
+
+vlr.gg lui-même n'est pas une source. Son `robots.txt` est permissif, mais ses
+conditions d'utilisation interdisent en toutes lettres « spider, robot,
+scraper » et « data mining » : on ne le collecte pas.
+
+La matière vient de Liquipedia, et il a fallu la chercher. Le wikitexte d'un
+match Valorant ne contient pas ses scores — seulement un identifiant de partie,
+que le wiki résout auprès de l'API de Riot au moment d'afficher. Mesuré sur 250
+pages : une seule carte portait son score en clair. Tout l'intérêt d'un match
+n'existe que dans la page **rendue**, et là il est entier : score par carte et
+par mi-temps, veto, statistiques par joueur (ACS, K/D/A, KAST, ADR, tirs à la
+tête, premiers kills, agent), et le déroulé manche par manche.
+
+Le rendu passe par `action=parse`, limité à **une requête toutes les trente
+secondes**. Les tournois désignent 95 765 matchs : tout lire prendrait
+trente-trois jours. La collecte suit donc un ordre — tournois majeurs d'abord,
+récents en tête — et s'arrête par défaut au niveau A : 6 861 matchs,
+cinquante-huit heures, reprise gratuite à chaque interruption.
+
+Chaque page rendue est conservée, réduite de 370 ko à une dizaine une fois
+compressée, à côté du document qu'on en tire. Si le parseur doit un jour lire
+autre chose, il relira l'entrepôt, pas le wiki.
+
 ### Ce que ce projet ne fait pas
 
 **Aucune récolte sur des sources qui l'interdisent.** HLTV répond 403 à tout
@@ -145,6 +172,9 @@ cp .env.example .env     # aucune clé n'est nécessaire pour OpenDota
 uv run esports-ingest sources                                    # flux disponibles
 uv run esports-ingest run opendota.dota2.pro_matches --pages 5   # collecter
 uv run esports-ingest run liquipedia.counterstrike.tournaments --pages 5
+uv run esports-ingest run liquipedia.valorant.tournaments --pages 200
+uv run esports-ingest run liquipedia.valorant.tournament_matches --pages 200
+uv run esports-ingest run liquipedia.valorant.match_pages --pages 30   # 4 matchs par page, 2 min
 uv run esports-ingest run opendota.dota2.pro_matches --mode backfill --pages 20
 uv run esports-ingest state                                      # où en est la collecte
 uv run esports-ingest check                                      # vérifier les données
@@ -162,10 +192,17 @@ L'entrepôt atterrit dans `warehouse/esports.duckdb` :
 | Table | Contenu |
 |---|---|
 | `raw.opendota_pro_matches` | Matchs professionnels Dota 2 |
-| `raw.liquipedia_tournaments` | Tournois Counter-Strike et Dota 2, une ligne par page de wiki |
+| `raw.liquipedia_tournaments` | Tournois Counter-Strike, Dota 2 et Valorant, une ligne par page de wiki |
 | `staging.stg_*` | Brut renommé et typé, sans interprétation |
 | `marts.dim_tournament` | Un tournoi par ligne, toutes disciplines, tier ramené à un rang commun |
-| `marts.fct_match` | Un match par ligne, vocabulaire neutre entre disciplines |
+| `raw.liquipedia_tournament_matches` | Pour chaque tournoi Valorant, les pages de match qu'il désigne |
+| `raw.liquipedia_match_pages` | Pages de match rendues : document extrait et page compressée |
+| `marts.fct_match` | Une partie par ligne, toutes disciplines : match Dota 2, carte Valorant |
+| `marts.fct_series` | Une rencontre Valorant (Bo1, Bo3, Bo5), reliée à son tournoi |
+| `marts.fct_map` | Une carte jouée, avec son veto et ses statistiques d'équipe |
+| `marts.fct_player_map` | La feuille d'un joueur sur une carte |
+| `marts.fct_round` | Une manche : score avant, issue, premier kill et sa conversion |
+| `marts.fct_veto` | Le veto, une étape par ligne |
 | `meta.ingestion_state` | Où en est chaque flux |
 | `meta.ingestion_runs` | Historique des exécutions, échecs compris |
 
@@ -179,19 +216,22 @@ devient intéressant, l'historique n'est pas à recollecter.
 - [x] Socle Python et intégration continue
 - [x] Ingestion OpenDota — matchs professionnels Dota 2
 - [x] Tests de données sur la couche brute
-- [x] Ingestion Liquipedia — tournois Counter-Strike et Dota 2
+- [x] Ingestion Liquipedia — tournois Counter-Strike, Dota 2 et Valorant
 - [x] Modèle commun inter-disciplines (dbt)
+- [x] Valorant — lecture des pages de match, liens tournoi → match, file priorisée
+- [x] Valorant — tables d'analyse : rencontre, carte, joueur, manche, veto
+- [ ] Valorant — collecte des niveaux S et A (en cours, 58 heures au total)
+- [ ] Valorant — analyses : joueurs, agents, cartes, veto, manches
+- [ ] Valorant — classement des équipes et prédiction, avec backtest
 - [ ] Demande GRID Open Access (CS2 et Dota 2, données officielles)
-- [ ] Ingestion BALLDONTLIE — référentiel seulement, les matchs étant payants
 - [ ] Rapprochement des tournois OpenDota et Liquipedia
-- [ ] Analyses exploratoires
-- [ ] Modèle de prédiction et backtest
 
-Ce qui n'est pas encore fait : les tournois et les matchs ne se parlent pas
-encore. OpenDota et Liquipedia n'ont aucun identifiant commun, et seul le nom
-permettrait de les rapprocher — `fct_match` garde donc l'identifiant de ligue
-de sa source, sans jointure vers `dim_tournament`. Côté matchs, seul Dota 2 est
-couvert : Counter-Strike n'a que ses tournois. Les notebooks sont vides.
+Ce qui n'est pas encore fait : les analyses elles-mêmes. Les tables sont là,
+la collecte des matchs majeurs avance à son rythme de trente secondes la page,
+mais aucun notebook n'existe encore et rien n'est prédit. Les niveaux B et en
+dessous ne sont pas collectés — 88 000 matchs, un mois de requêtes. Côté
+Counter-Strike, seuls les tournois sont couverts ; côté Dota 2, les matchs ne
+sont pas reliés à leurs tournois, faute d'identifiant commun.
 
 ## Licence
 

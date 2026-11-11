@@ -28,6 +28,9 @@ Ne pas les rouvrir sans raison ; elles ont été arbitrées.
 - **Trois sources hétérogènes** (Liquipedia MediaWiki, OpenDota, BALLDONTLIE) choisies
   pour leurs différences — schémas, auth, quotas, fraîcheurs. Les réconcilier
   est l'intérêt technique du projet, pas un obstacle à contourner.
+- **Valorant d'abord** (arbitré le 2026-11-11). Le multi-jeux reste l'architecture,
+  mais l'effort va à Valorant, avec pour cible des analyses du niveau de vlr.gg
+  et au-delà. Counter-Strike et Dota 2 restent en l'état.
 - **Public depuis le premier commit.** L'historique fait partie de la
   démonstration : il doit rester propre et lisible.
 - **Licence MIT.**
@@ -37,6 +40,9 @@ Ne pas les rouvrir sans raison ; elles ont été arbitrées.
 - **Aucune récolte sur une source qui l'interdit.** HLTV répond 403 aux clients
   automatisés : pas de contournement, pas de faux user-agent, pas de scraping
   déguisé. Les instantanés manuels sont datés et signalés comme tels.
+- **vlr.gg ne se collecte pas.** Son `robots.txt` n'interdit presque rien, mais
+  ses conditions d'utilisation proscrivent « spider, robot, scraper » et « data
+  mining » (vérifié le 2026-11-11). C'est une référence d'analyse, pas une source.
 - **Liquipedia — API MediaWiki, accès libre, aucune demande à déposer.**
   Respecter 1 req/2 s, et 1 req/30 s pour `action=parse`. Supporter gzip.
   Envoyer un `User-Agent` descriptif incluant un contact — un agent générique
@@ -169,6 +175,40 @@ durée négative.
 
 Pour aller plus loin côté matchs, relancer un backfill OpenDota : chaque page
 vaut 100 matchs et l'état reprend tout seul.
+
+## Valorant (2026-11-11)
+
+Trois flux, à lancer dans cet ordre : `liquipedia.valorant.tournaments`, puis
+`.tournament_matches`, puis `.match_pages`.
+
+- **Le wikitexte d'un match ne contient pas ses scores.** Les pages de l'espace
+  `Match:` (130) portent `{{ApiMap|matchid=…}}` : Liquipedia résout l'identifiant
+  auprès de l'API de Riot au rendu. Sur 250 pages, 81 % passent par là et une
+  seule carte avait son score en clair. Inutile de rechercher une voie wikitexte.
+- **`action=parse` rend tout** : scores, mi-temps, veto, statistiques par joueur
+  et par carte, manches une à une. Classes CSS `match-bm-*`, instant exact dans
+  `data-timestamp`. Limite : **1 requête / 30 s**.
+- **`prop=links&plnamespace=130`** sur une page de tournoi donne ses pages de
+  match : lien tournoi ↔ match exact, par identifiant. Avec le générateur de
+  catégorie, 50 tournois par appel ; épuiser `plcontinue` avant d'avancer.
+- **Volumes** : 8 103 tournois, 95 765 matchs désignés (la catégorie `Matches`
+  n'en annonce que 21 565 — ne pas s'y fier). S-Tier 2 263 matchs (19 h),
+  A-Tier 4 598 (39 h), B-Tier 21 570 (183 h), C-Tier 64 332 (545 h).
+- **Plafond par défaut : niveau A** (`MAX_RANK = 2` dans `liquipedia_matches.py`).
+  Le relever est un choix de périmètre à discuter, pas un réglage.
+- La page rendue est stockée compressée (`html_gz`, ~7 ko) : un changement de
+  parseur se rejoue depuis l'entrepôt. **Aucune commande de relecture n'existe
+  encore** — à écrire le jour où le parseur change.
+- DuckDB n'admet qu'un processus écrivain : pendant une collecte de matchs, ni
+  `dbt build` ni une autre collecte ne peuvent ouvrir l'entrepôt. La ligne de
+  commande le dit. Interrompre la collecte ne perd au plus que quatre pages.
+- La forme rendue des pages de match est propre à chaque wiki : seul Valorant
+  est branché et éprouvé.
+
+Suite prévue : les analyses (joueurs, agents, cartes, veto, manches, puis
+classement des équipes et prédiction avec backtest). Les tables `marts.fct_*`
+existent ; aucun notebook n'est écrit. La voie officielle pour aller plus vite
+serait l'API LiquipediaDB, sur demande approuvée — à déposer par l'auteur.
 
 ## Ce que l'environnement a appris
 
