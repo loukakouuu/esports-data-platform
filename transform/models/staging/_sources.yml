@@ -35,3 +35,23 @@ sources:
               - accepted_values:
                   arguments:
                     values: ["counterstrike", "dota2", "valorant"]
+
+      - name: liquipedia_tournament_matches
+        description: >
+          Pour chaque tournoi, les pages de match qu'il désigne. Le lien est
+          exact : il vient du wiki, pas d'un rapprochement de noms.
+        columns:
+          - name: match_title
+            data_tests: [not_null]
+
+      - name: liquipedia_match_pages
+        description: >
+          Pages de match rendues, une par ligne, avec le document qu'on en tire
+          et la page elle-même, compressée. Toutes les pages tentées y sont,
+          terminées ou non : le statut dit ce qu'il en est.
+        loaded_at_field: refreshed_at
+        columns:
+          - name: page_title
+            data_tests: [not_null]
+          - name: status
+            data_tests: [not_null]

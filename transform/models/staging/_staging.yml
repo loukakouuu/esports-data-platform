@@ -36,3 +36,39 @@ models:
       - unique_combination:
           arguments:
             combination_of_columns: [wiki, page_id]
+
+  - name: stg_liquipedia__matches
+    description: Rencontres terminées, une par ligne, document JSON encore replié.
+    columns:
+      - name: series_key
+        data_tests: [unique, not_null]
+
+  - name: stg_liquipedia__match_maps
+    description: Cartes jouées, dépliées du document de leur rencontre.
+    columns:
+      - name: map_key
+        data_tests: [unique, not_null]
+
+  - name: stg_liquipedia__match_players
+    description: Ligne de statistiques d'un joueur sur une carte.
+    columns:
+      - name: player
+        description: Titre de la page du joueur — la seule identité stable.
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: [map_key, player]
+
+  - name: stg_liquipedia__match_rounds
+    description: Manches, une par ligne.
+    columns:
+      - name: round_key
+        data_tests: [unique, not_null]
+
+  - name: stg_liquipedia__match_veto
+    description: Étapes du veto, dans l'ordre.
+    data_tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: [series_key, veto_order]

@@ -44,8 +44,9 @@ models:
 
   - name: fct_match
     description: >
-      Un match par ligne. Seul Dota 2 est couvert pour l'instant : les colonnes
-      sont neutres pour que Counter-Strike puisse s'y ajouter sans refonte.
+      Une partie jouée par ligne, toutes disciplines confondues : un match
+      Dota 2, une carte Valorant. Seulement ce que les disciplines ont en
+      commun — le détail vit dans `fct_map`, `fct_player_map` et `fct_round`.
     columns:
       - name: match_key
         data_tests: [unique, not_null]
@@ -54,11 +55,11 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["dota2"]
+                values: ["dota2", "valorant"]
       - name: started_at
         data_tests: [not_null]
       - name: winning_side
-        description: 1 ou 2, jamais nul — un match sans vainqueur ne sert à rien.
+        description: 1 ou 2, jamais nul — une partie sans vainqueur ne sert à rien.
         data_tests:
           - not_null
           - accepted_values:
@@ -71,3 +72,118 @@ models:
               arguments:
                 min_value: 0
                 max_value: 21600
+
+  - name: fct_series
+    description: >
+      Une rencontre par ligne — Bo1, Bo3 ou Bo5 — reliée à son tournoi par
+      identifiant.
+    columns:
+      - name: series_key
+        data_tests: [unique, not_null]
+      - name: played_at
+        data_tests: [not_null]
+      - name: winning_side
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+
+  - name: fct_map
+    description: Une carte jouée par ligne, avec son veto et ses statistiques d'équipe.
+    columns:
+      - name: map_key
+        data_tests: [unique, not_null]
+      - name: map_name
+        data_tests: [not_null]
+      - name: winning_side
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: rounds_played
+        description: Une carte se gagne à 13 manches ; le perdant en a au moins zéro.
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 13
+                max_value: 80
+      - name: side_1_starting_side
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["atk", "def"]
+
+  - name: fct_player_map
+    description: >
+      La feuille de statistiques d'un joueur sur une carte, taux par manche
+      compris.
+    columns:
+      - name: player_map_key
+        data_tests: [unique, not_null]
+      - name: agent
+        data_tests: [not_null]
+      - name: acs
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1000
+      - name: kast_pct
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+      - name: headshot_pct
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+
+  - name: fct_round
+    description: >
+      Une manche par ligne, avec le score au moment où elle commence et le
+      sort du premier kill.
+    columns:
+      - name: round_key
+        data_tests: [unique, not_null]
+      - name: winning_side
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: winning_role
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["atk", "def"]
+      - name: outcome
+        description: >
+          Les quatre façons de finir une manche. Une cinquième signifierait que
+          le jeu a changé, ou que la page se lit mal.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "Spike detonated"
+                  - "Spike defused"
+                  - "Enemy eliminated"
+                  - "Timer expired"
+
+  - name: fct_veto
+    description: Le veto, une étape par ligne.
+    columns:
+      - name: veto_key
+        data_tests: [unique, not_null]
+      - name: action
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["ban", "pick", "decider"]
